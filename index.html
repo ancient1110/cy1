@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.4 (增强交叉点识别+利用现有节点)</title>
+    <title>六年级科学：塔台工程 v6.5 (稳健交叉点识别+多交点拆分)</title>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
@@ -503,109 +503,139 @@
             if (idx !== -1) sticks.splice(idx, 1);
         }
 
-        // --- 自动连接交叉点 (增强版) ---
+        // --- 自动连接交叉点 (稳健版) ---
         function autoConnectIntersections() {
             if (isSimulating) { showToast("测试中不能使用此功能"); return; }
             if (sticks.length < 2) { showToast("至少需要两根杆件"); return; }
 
             saveHistory(); // 记录操作前状态
 
-            // 用于记录每个交点需要处理的杆件，按交点坐标分组
-            const intersectionGroups = new Map(); // 键: "x,y" 字符串，值: { point: {x,y}, sticks: Set<Stick> }
+            const EPS = 1e-4;
+            const ENDPOINT_GUARD = 0.02;
+            const MERGE_TOL = Math.max(2, CONFIG.snapDist * 0.25);
 
-            // 遍历所有杆件对
+            const clusters = [];
+            const splitMap = new Map(); // stick -> [{ t, point }]
+
+            function pointLineDistance(px, py, ax, ay, bx, by) {
+                const vx = bx - ax;
+                const vy = by - ay;
+                const len2 = vx * vx + vy * vy;
+                if (len2 < EPS) return Math.hypot(px - ax, py - ay);
+                const t = ((px - ax) * vx + (py - ay) * vy) / len2;
+                const clamped = Math.max(0, Math.min(1, t));
+                const cx = ax + clamped * vx;
+                const cy = ay + clamped * vy;
+                return Math.hypot(px - cx, py - cy);
+            }
+
+            function findNearbyNode(ix, iy, s1, s2) {
+                let nearest = null;
+                let bestDist = CONFIG.snapDist;
+                for (let p of points) {
+                    const d = Math.hypot(p.x - ix, p.y - iy);
+                    if (d >= bestDist) continue;
+                    const dToS1 = pointLineDistance(p.x, p.y, s1.p1.x, s1.p1.y, s1.p2.x, s1.p2.y);
+                    const dToS2 = pointLineDistance(p.x, p.y, s2.p1.x, s2.p1.y, s2.p2.x, s2.p2.y);
+                    if (dToS1 > MERGE_TOL || dToS2 > MERGE_TOL) continue;
+                    nearest = p;
+                    bestDist = d;
+                }
+                return nearest;
+            }
+
+            function findOrCreateCluster(x, y, existingNode) {
+                for (let c of clusters) {
+                    if (Math.hypot(c.x - x, c.y - y) <= MERGE_TOL) {
+                        if (!c.existingNode && existingNode) c.existingNode = existingNode;
+                        if (c.existingNode) {
+                            c.x = c.existingNode.x;
+                            c.y = c.existingNode.y;
+                        }
+                        return c;
+                    }
+                }
+                const cluster = {
+                    x: existingNode ? existingNode.x : x,
+                    y: existingNode ? existingNode.y : y,
+                    existingNode,
+                    node: null
+                };
+                clusters.push(cluster);
+                return cluster;
+            }
+
+            function registerSplit(stick, t, cluster) {
+                if (t <= ENDPOINT_GUARD || t >= 1 - ENDPOINT_GUARD) return;
+                if (!splitMap.has(stick)) splitMap.set(stick, []);
+                splitMap.get(stick).push({ t, cluster });
+            }
+
+            // 1) 检测所有交点并注册到对应杆件
             for (let i = 0; i < sticks.length; i++) {
-                for (let j = i+1; j < sticks.length; j++) {
-                    let s1 = sticks[i];
-                    let s2 = sticks[j];
-
-                    // 如果两根杆件有公共端点，跳过（已经连接）
+                for (let j = i + 1; j < sticks.length; j++) {
+                    const s1 = sticks[i];
+                    const s2 = sticks[j];
                     if (s1.p1 === s2.p1 || s1.p1 === s2.p2 || s1.p2 === s2.p1 || s1.p2 === s2.p2) continue;
 
-                    // 计算线段交点
-                    let p1 = s1.p1, p2 = s1.p2, p3 = s2.p1, p4 = s2.p2;
-                    let denom = (p4.y - p3.y)*(p2.x - p1.x) - (p4.x - p3.x)*(p2.y - p1.y);
-                    if (Math.abs(denom) < 1e-10) continue; // 平行
+                    const p1 = s1.p1, p2 = s1.p2, p3 = s2.p1, p4 = s2.p2;
+                    const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+                    if (Math.abs(denom) < EPS) continue;
 
-                    let ua = ((p4.x - p3.x)*(p1.y - p3.y) - (p4.y - p3.y)*(p1.x - p3.x)) / denom;
-                    let ub = ((p2.x - p1.x)*(p1.y - p3.y) - (p2.y - p1.y)*(p1.x - p3.x)) / denom;
+                    const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+                    const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
 
-                    // 允许微小容差，但排除端点附近（避免在端点处拆分）
-                    const EPS = 1e-5;
-                    if (ua < EPS || ua > 1 - EPS || ub < EPS || ub > 1 - EPS) continue;
+                    if (ua <= ENDPOINT_GUARD || ua >= 1 - ENDPOINT_GUARD || ub <= ENDPOINT_GUARD || ub >= 1 - ENDPOINT_GUARD) continue;
 
-                    // 计算交点坐标
-                    let ix = p1.x + ua * (p2.x - p1.x);
-                    let iy = p1.y + ua * (p2.y - p1.y);
+                    const ix = p1.x + ua * (p2.x - p1.x);
+                    const iy = p1.y + ua * (p2.y - p1.y);
+                    const nearbyNode = findNearbyNode(ix, iy, s1, s2);
+                    const cluster = findOrCreateCluster(ix, iy, nearbyNode);
 
-                    // 查找附近是否存在已有节点（距离 < snapDist）
-                    let existingNode = null;
-                    for (let p of points) {
-                        if (Math.hypot(p.x - ix, p.y - iy) < CONFIG.snapDist) {
-                            existingNode = p;
-                            break;
-                        }
-                    }
-
-                    // 决定连接点坐标（如果已有节点，使用其精确坐标；否则使用交点坐标）
-                    let connectX = existingNode ? existingNode.x : ix;
-                    let connectY = existingNode ? existingNode.y : iy;
-                    let key = `${connectX.toFixed(2)},${connectY.toFixed(2)}`;
-
-                    if (!intersectionGroups.has(key)) {
-                        intersectionGroups.set(key, {
-                            point: { x: connectX, y: connectY },
-                            existingNode: existingNode,
-                            sticks: new Set()
-                        });
-                    }
-                    let group = intersectionGroups.get(key);
-                    group.sticks.add(s1);
-                    group.sticks.add(s2);
+                    registerSplit(s1, ua, cluster);
+                    registerSplit(s2, ub, cluster);
                 }
             }
 
-            // 处理每个交点组
             let newNodesCount = 0;
-            let processedSticks = new Set(); // 全局已处理杆件，避免重复拆分
+            let processedSticks = 0;
 
-            for (let [key, group] of intersectionGroups.entries()) {
-                // 如果该组内杆件数量少于2，理论上不会发生，但防御性处理
-                if (group.sticks.size < 2) continue;
-
-                // 确定连接节点：如果已有现成节点，直接使用；否则创建新节点
-                let connectNode = group.existingNode;
-                if (!connectNode) {
-                    connectNode = addPoint(group.point.x, group.point.y, false, currentMat);
-                    newNodesCount++;
-                }
-
-                // 遍历组内的所有杆件，进行拆分
-                for (let stick of group.sticks) {
-                    if (processedSticks.has(stick)) continue; // 已经处理过
-
-                    // 检查该杆件是否真的经过连接点附近（避免误拆）
-                    // 简单验证：杆件两端到连接点的距离之和 约等于 杆件长度
-                    let d1 = Math.hypot(stick.p1.x - connectNode.x, stick.p1.y - connectNode.y);
-                    let d2 = Math.hypot(stick.p2.x - connectNode.x, stick.p2.y - connectNode.y);
-                    let stickLen = Math.hypot(stick.p1.x - stick.p2.x, stick.p1.y - stick.p2.y);
-                    if (Math.abs(d1 + d2 - stickLen) > 1) continue; // 不在这根杆件上，跳过
-
-                    // 从全局杆件列表中移除原杆件
-                    let idx = sticks.indexOf(stick);
-                    if (idx === -1) continue;
-                    sticks.splice(idx, 1);
-                    processedSticks.add(stick);
-
-                    // 创建两段新杆件（使用相同材料）
-                    let matId = stick.mat.id;
-                    sticks.push(new Stick(stick.p1, connectNode, matId));
-                    sticks.push(new Stick(connectNode, stick.p2, matId));
-                }
+            // 2) 为每个交点准备实际节点
+            for (let cluster of clusters) {
+                cluster.node = cluster.existingNode || addPoint(cluster.x, cluster.y, false, currentMat);
+                if (!cluster.existingNode) newNodesCount++;
             }
 
-            if (newNodesCount > 0 || processedSticks.size > 0) {
-                showToast(`已处理 ${processedSticks.size} 根杆件，新增 ${newNodesCount} 个节点`);
+            // 3) 对每根杆件按 t 值多段拆分（支持一根杆件多个交点）
+            for (let [stick, splits] of splitMap.entries()) {
+                if (!splits.length) continue;
+
+                const deduped = [];
+                splits.sort((a, b) => a.t - b.t);
+                for (let s of splits) {
+                    const last = deduped[deduped.length - 1];
+                    if (last && Math.abs(last.t - s.t) < ENDPOINT_GUARD) continue;
+                    deduped.push(s);
+                }
+                if (!deduped.length) continue;
+
+                const idx = sticks.indexOf(stick);
+                if (idx === -1) continue;
+                sticks.splice(idx, 1);
+
+                let chain = [stick.p1, ...deduped.map(s => s.cluster.node), stick.p2];
+                for (let i = 0; i < chain.length - 1; i++) {
+                    const a = chain[i];
+                    const b = chain[i + 1];
+                    if (a === b) continue;
+                    if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
+                    sticks.push(new Stick(a, b, stick.mat.id));
+                }
+                processedSticks++;
+            }
+
+            if (newNodesCount > 0 || processedSticks > 0) {
+                showToast(`已处理 ${processedSticks} 根杆件，新增 ${newNodesCount} 个节点`);
             } else {
                 showToast("未发现需要连接的交叉点");
             }
