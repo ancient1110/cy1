@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.6 (交叉点稳健识别+双向风/横纵波地震)</title>
+    <title>六年级科学：塔台工程 v6.7 (材料平衡调优+压重可视化)</title>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
@@ -162,9 +162,9 @@
 
         // --- 材料库 ---
         const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 180, nodeStrength: 200, mass: 0.1, angleStrength: 0.05 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 500, nodeStrength: 600, mass: 0.3, angleStrength: 0.08 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 800, nodeStrength: 800, mass: 0.05, angleStrength: 0.12 }
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 6,  nodeStrength: 8,  mass: 0.14, angleStrength: 0.22 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 11, nodeStrength: 14, mass: 0.16, angleStrength: 0.32 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 16, nodeStrength: 18, mass: 0.08, angleStrength: 0.45 }
         };
 
         const CONFIG = {
@@ -287,7 +287,7 @@
                 this.y += CONFIG.gravity * this.mat.mass;
 
                 if (groundY - this.y > 100) {
-                    this.y += (env.load * 0.05);
+                    this.y += (env.load * 0.08);
                 }
 
                 this.x += getWindForceAtY(this.y);
@@ -816,6 +816,7 @@
             ctx.fillStyle = "#95a5a6";
             ctx.fillRect(0, groundY, width, CONFIG.groundHeight);
 
+            drawLoadVisual();
             sticks.forEach(s => s.draw());
 
             points.forEach(p => {
@@ -888,6 +889,67 @@
             let projx = a.x + abx * t;
             let projy = a.y + aby * t;
             return Math.hypot(p.x - projx, p.y - projy);
+        }
+
+        function getTopCluster() {
+            const active = points.filter(p => !p.broken);
+            if (!active.length) return null;
+            const topY = active.reduce((m, p) => Math.min(m, p.y), active[0].y);
+            const band = active.filter(p => p.y <= topY + 30);
+            if (!band.length) return null;
+            const centerX = band.reduce((sum, p) => sum + p.x, 0) / band.length;
+            return { topY, centerX, count: band.length };
+        }
+
+        function drawLoadVisual() {
+            if (!isSimulating || env.load <= 0) return;
+            const top = getTopCluster();
+            if (!top) return;
+
+            const plateW = Math.max(120, Math.min(280, 110 + env.load * 1.4));
+            const plateH = 16;
+            const plateX = top.centerX - plateW / 2;
+            const plateY = Math.max(30, top.topY - 26);
+
+            const blockW = Math.max(90, plateW * 0.65);
+            const blockH = 24 + env.load * 0.7;
+            const blockX = top.centerX - blockW / 2;
+            const blockY = plateY - blockH - 18;
+
+            ctx.fillStyle = 'rgba(52, 73, 94, 0.95)';
+            ctx.fillRect(blockX, blockY, blockW, blockH);
+            ctx.strokeStyle = '#1f2d3a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(blockX, blockY, blockW, blockH);
+
+            ctx.fillStyle = '#ecf0f1';
+            ctx.font = 'bold 14px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${env.load}kg`, top.centerX, blockY + blockH / 2 + 5);
+
+            ctx.strokeStyle = 'rgba(60, 60, 60, 0.9)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(top.centerX, blockY + blockH);
+            ctx.lineTo(top.centerX, plateY);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
+            for (let i = -2; i <= 2; i++) {
+                const x = top.centerX + i * (plateW / 6);
+                ctx.beginPath();
+                ctx.moveTo(x, plateY - 6);
+                ctx.lineTo(x - 6, plateY - 16 - env.load * 0.08);
+                ctx.lineTo(x + 6, plateY - 16 - env.load * 0.08);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.fillStyle = 'rgba(127, 140, 141, 0.95)';
+            ctx.fillRect(plateX, plateY, plateW, plateH);
+            ctx.strokeStyle = '#5d6d6d';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(plateX, plateY, plateW, plateH);
         }
 
         function drawGrid() {
