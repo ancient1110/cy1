@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.5 (稳健交叉点识别+多交点拆分)</title>
+    <title>六年级科学：塔台工程 v6.6 (交叉点稳健识别+双向风/横纵波地震)</title>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
@@ -205,6 +205,24 @@
         // 删除模式
         let deleteMode = false;
 
+        function getWindForceAtY(y) {
+            if (!isSimulating || env.wind <= 0) return 0;
+            const amplitude = (groundY - y) / 1000 * (env.wind / 20);
+            const phase = Date.now() / 350;
+            return Math.sin(phase) * amplitude;
+        }
+
+        function getQuakeOffsets() {
+            if (!isSimulating || env.quake <= 0) return { x: 0, y: 0 };
+            const t = Date.now();
+            const xAmp = env.quake / 5;
+            const yAmp = env.quake / 8;
+            return {
+                x: Math.sin(t / 50) * xAmp,
+                y: Math.cos(t / 65) * yAmp
+            };
+        }
+
         // --- 点类 ---
         class Point {
             constructor(x, y, pinned, matId) {
@@ -228,10 +246,7 @@
 
                     this.y += CONFIG.gravity;
 
-                    if (isSimulating && env.wind > 0) {
-                        let windForce = (groundY - this.y) / 1000 * (env.wind / 20);
-                        this.x += windForce + (Math.random()-0.5) * (env.wind/200);
-                    }
+                    this.x += getWindForceAtY(this.y);
 
                     this.x += vx;
                     this.y += vy;
@@ -250,14 +265,16 @@
                 }
 
                 if (this.pinned) {
+                    const quake = getQuakeOffsets();
                     if (env.quake > 0) {
-                        let intensity = env.quake / 5;
-                        this.x = this.baseX + Math.sin(Date.now() / 50) * intensity;
+                        this.x = this.baseX + quake.x;
+                        this.y = groundY + quake.y;
                     } else {
                         this.x += (this.baseX - this.x) * 0.1;
+                        this.y = groundY;
                     }
-                    this.y = groundY;
                     this.oldx = this.x;
+                    this.oldy = this.y;
                     return;
                 }
 
@@ -273,10 +290,7 @@
                     this.y += (env.load * 0.05);
                 }
 
-                if (env.wind > 0) {
-                    let windForce = (groundY - this.y) / 1000 * (env.wind / 20);
-                    this.x += windForce + (Math.random()-0.5) * (env.wind/200);
-                }
+                this.x += getWindForceAtY(this.y);
 
                 this.x += vx;
                 this.y += vy;
