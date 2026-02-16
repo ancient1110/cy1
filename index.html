@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.8 (断裂基部互动修正+界面与高度优化)</title>
+    <title>六年级科学：塔台工程 v6.9 (抗性与形变修正+造价栏精简)</title>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
@@ -51,8 +51,7 @@
         input[type=range] { width: 100%; cursor: pointer; }
         
         .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #555; }
-        .total-cost { font-size: 20px; color: #e67e22; font-weight: bold; text-align: right; margin-top: 6px; }
-        .formula-note { font-size: 11px; line-height: 1.35; color: #7f8c8d; margin-top: 4px; border-top: 1px dashed #ccc; padding-top: 6px; }
+        .total-cost { display:flex; justify-content: space-between; align-items: baseline; font-size: 20px; color: #e67e22; font-weight: bold; margin-top: 6px; }
         
         #toast {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
@@ -146,13 +145,7 @@
             <div class="stat-row"><span>木条长度:</span> <span id="stat-len-wood">0 cm</span> (¥2/cm)</div>
             <div class="stat-row"><span>钢材长度:</span> <span id="stat-len-steel">0 cm</span> (¥8/cm)</div>
             <div class="stat-row"><span>碳纤长度:</span> <span id="stat-len-carbon">0 cm</span> (¥20/cm)</div>
-            <div class="total-cost">¥<span id="stat-cost">0</span></div>
-            <div class="formula-note">
-                <strong>计算公式：</strong><br>
-                节点成本 = 节点数 × ¥50<br>
-                杆件成本 = Σ(各材料长度 × 单价)<br>
-                总造价 = 节点成本 + 杆件成本
-            </div>
+            <div class="total-cost"><span>总价:</span><span>¥<span id="stat-cost">0</span></span></div>
 
             <div style="display: flex; gap: 8px; margin: 20px 0 10px;">
                 <button class="btn-small" onclick="undo()">↩️ 撤销</button>
@@ -173,9 +166,9 @@
 
         // --- 材料库 ---
         const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 6,  nodeStrength: 8,  mass: 0.14, angleStrength: 0.22 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 11, nodeStrength: 14, mass: 0.16, angleStrength: 0.32 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 16, nodeStrength: 18, mass: 0.08, angleStrength: 0.45 }
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 3.5, nodeStrength: 4.5, mass: 0.14, angleStrength: 0.18 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 6.5, nodeStrength: 8,   mass: 0.16, angleStrength: 0.24 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 9.5, nodeStrength: 11,  mass: 0.08, angleStrength: 0.32 }
         };
 
         const CONFIG = {
@@ -346,8 +339,16 @@
                 if (dist === 0) return;
 
                 this.stress = Math.abs(dist - this.len);
+                const stretchRatio = dist / Math.max(this.len, 0.001);
 
                 if (preheatRemaining <= 0) {
+                    // 限制杆件出现“拉面条”式超长形变：超过比例直接判定断裂
+                    if (stretchRatio > 1.16 && !this.broken) {
+                        this.broken = true;
+                        this.wasBroken = true;
+                        this.breakOrder = nextBreakOrder++;
+                    }
+
                     // 杆件自身强度断裂
                     if (this.stress > this.mat.strength && !this.broken) {
                         this.broken = true;
@@ -369,6 +370,8 @@
                         }
                     }
                 }
+
+                if (this.broken) return;
 
                 let diff = this.len - dist;
                 let percent = diff / dist / 2;
