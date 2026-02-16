@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.7 (材料平衡调优+压重可视化)</title>
+    <title>六年级科学：塔台工程 v6.8 (断裂基部互动修正+界面与高度优化)</title>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
@@ -13,20 +13,20 @@
         }
 
         #sidebar {
-            width: 360px; height: 100vh; background: #fff;
+            width: 320px; height: 100vh; background: #fff;
             border-left: 1px solid #dcdcdc; display: flex; flex-direction: column;
             box-shadow: -5px 0 15px rgba(0,0,0,0.05); z-index: 100;
         }
 
-        .sidebar-scroll { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        .sidebar-scroll { padding: 12px 14px; overflow-y: auto; flex-grow: 1; }
 
-        h2 { font-size: 16px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 20px 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
+        h2 { font-size: 14px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin: 12px 0 8px 0; display: flex; justify-content: space-between; align-items: center; }
         h2:first-child { margin-top: 0; }
         
         .mode-btn {
-            width: 100%; padding: 15px; border: none; border-radius: 8px;
-            font-size: 18px; font-weight: bold; cursor: pointer; color: white;
-            transition: all 0.3s; margin-bottom: 20px;
+            width: 100%; padding: 11px; border: none; border-radius: 8px;
+            font-size: 16px; font-weight: bold; cursor: pointer; color: white;
+            transition: all 0.3s; margin-bottom: 12px;
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
         }
@@ -38,21 +38,21 @@
 
         .material-group { display: flex; gap: 8px; margin-bottom: 10px; }
         .mat-option {
-            flex: 1; padding: 10px 5px; border: 2px solid #ecf0f1; border-radius: 6px;
-            text-align: center; cursor: pointer; transition: all 0.2s; font-size: 12px;
+            flex: 1; padding: 8px 4px; border: 2px solid #ecf0f1; border-radius: 6px;
+            text-align: center; cursor: pointer; transition: all 0.2s; font-size: 11px;
             background: #f9f9f9;
         }
         .mat-option:hover { border-color: #bdc3c7; }
         .mat-option.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
         .mat-color { width: 12px; height: 12px; border-radius: 50%; margin: 0 auto 5px; }
 
-        .slider-group { margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 6px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: #555; }
+        .slider-group { margin-bottom: 8px; background: #f8f9fa; padding: 7px 8px; border-radius: 6px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #555; }
         input[type=range] { width: 100%; cursor: pointer; }
         
-        .stat-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; color: #555; }
-        .total-cost { font-size: 24px; color: #e67e22; font-weight: bold; text-align: right; margin-top: 10px; }
-        .formula-note { font-size: 12px; color: #7f8c8d; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 8px; }
+        .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #555; }
+        .total-cost { font-size: 20px; color: #e67e22; font-weight: bold; text-align: right; margin-top: 6px; }
+        .formula-note { font-size: 11px; line-height: 1.35; color: #7f8c8d; margin-top: 4px; border-top: 1px dashed #ccc; padding-top: 6px; }
         
         #toast {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
@@ -60,9 +60,9 @@
             border-radius: 30px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
         }
         
-        .btn-group { display: flex; gap: 8px; margin-top: 15px; }
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
         .btn-small {
-            background: #ecf0f1; border: none; padding: 8px 0; border-radius: 4px;
+            background: #ecf0f1; border: none; padding: 7px 0; border-radius: 4px;
             cursor: pointer; color: #7f8c8d; font-size: 12px; flex: 1;
         }
         .btn-small:hover { background: #ffeaa7; color: #d35400; }
@@ -71,18 +71,28 @@
 
         #delete-mode-toggle {
             background: #ecf0f1; border: 2px solid #bdc3c7; border-radius: 4px;
-            padding: 8px; text-align: center; cursor: pointer; font-size: 12px; margin-top: 10px;
+            padding: 7px; text-align: center; cursor: pointer; font-size: 12px; margin-top: 8px;
         }
         #delete-mode-toggle.active {
             background: #e74c3c; border-color: #c0392b; color: white;
         }
 
         .btn-special {
-            background: #3498db; color: white; width: 100%; padding: 10px;
+            background: #3498db; color: white; width: 100%; padding: 8px;
             border: none; border-radius: 4px; margin-top: 15px; cursor: pointer;
             font-size: 14px;
         }
         .btn-special:hover { background: #2980b9; }
+
+        #height-indicator {
+            position: absolute; top: 12px; left: 14px;
+            background: rgba(255,255,255,0.92); color: #2c3e50;
+            border: 1px solid #d5dadd; border-radius: 10px;
+            padding: 8px 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            font-size: 14px; font-weight: 600;
+            pointer-events: none;
+        }
+
     </style>
 </head>
 <body>
@@ -90,6 +100,7 @@
     <div id="canvas-container">
         <canvas id="simCanvas"></canvas>
         <div id="toast">提示信息</div>
+        <div id="height-indicator">🏔️ 最高点：0 cm</div>
     </div>
 
     <div id="sidebar">
@@ -245,6 +256,12 @@
                     this.oldy = this.y;
 
                     this.y += CONFIG.gravity;
+
+                    const quake = getQuakeOffsets();
+                    if (this.y >= groundY - 2) {
+                        this.x += quake.x * 0.35;
+                        this.y += quake.y * 0.2;
+                    }
 
                     this.x += getWindForceAtY(this.y);
 
@@ -1244,8 +1261,11 @@
             points.forEach(p => {
                 if (!p.broken) maxH = Math.max(maxH, groundY - p.y);
             });
+            let heightText = Math.round(maxH / CONFIG.scale) + " cm";
             let elHeight = getEl('stat-height');
-            if (elHeight) elHeight.innerText = Math.round(maxH / CONFIG.scale) + " cm";
+            if (elHeight) elHeight.innerText = heightText;
+            let elMainHeight = getEl('height-indicator');
+            if (elMainHeight) elMainHeight.innerText = `🏔️ 最高点：${heightText}`;
 
             let nodeCount = points.filter(p=>!p.broken).length;
             let elNodes = getEl('stat-nodes');
