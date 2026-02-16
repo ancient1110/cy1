@@ -1,497 +1,1178 @@
-diff --git a/index.html b/index.html
-new file mode 100644
-index 0000000000000000000000000000000000000000..a0bfa49e43bdb58ebac411bc64943a5f25d6baff
---- /dev/null
-+++ b/index.html
-@@ -0,0 +1,491 @@
-+<!DOCTYPE html>
-+<html lang="zh-CN">
-+<head>
-+  <meta charset="UTF-8" />
-+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-+  <title>塔台工程二维模拟</title>
-+  <style>
-+    :root {
-+      --bg: #f5f7fb;
-+      --panel: #ffffff;
-+      --stick: #9b6b3d;
-+      --stick-highlight: #be8551;
-+      --danger: #c0392b;
-+      --ok: #2d8a4f;
-+      --muted: #6c7a96;
-+    }
-+    * { box-sizing: border-box; }
-+    body {
-+      margin: 0;
-+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-+      background: var(--bg);
-+      color: #1f2a44;
-+      display: grid;
-+      grid-template-columns: 340px 1fr;
-+      min-height: 100vh;
-+      gap: 12px;
-+      padding: 12px;
-+    }
-+    .panel {
-+      background: var(--panel);
-+      border-radius: 12px;
-+      box-shadow: 0 3px 12px rgba(0,0,0,0.08);
-+      padding: 14px;
-+    }
-+    .panel h1 { font-size: 20px; margin: 0 0 10px; }
-+    .section { margin-bottom: 14px; }
-+    .section h2 { font-size: 15px; margin: 0 0 8px; color: #304167; }
-+    .row { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
-+    .row label { width: 98px; color: #3f4f74; font-size: 13px; }
-+    input[type="range"] { flex: 1; }
-+    input[type="number"] { width: 64px; padding: 4px; }
-+    button {
-+      border: none;
-+      background: #4361ee;
-+      color: white;
-+      padding: 8px 10px;
-+      border-radius: 8px;
-+      cursor: pointer;
-+      font-size: 13px;
-+    }
-+    button.secondary { background: #7b879f; }
-+    button.danger { background: #d94841; }
-+    .stats {
-+      background: #f2f5ff;
-+      border-radius: 8px;
-+      padding: 10px;
-+      font-size: 14px;
-+      line-height: 1.7;
-+    }
-+    .stats strong { color: #20315a; }
-+    .ok { color: var(--ok); }
-+    .danger-text { color: var(--danger); }
-+    .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
-+    .canvas-wrap {
-+      background: var(--panel);
-+      border-radius: 12px;
-+      box-shadow: 0 3px 12px rgba(0,0,0,0.08);
-+      padding: 8px;
-+      display: flex;
-+      flex-direction: column;
-+    }
-+    canvas {
-+      width: 100%;
-+      height: calc(100vh - 50px);
-+      border-radius: 10px;
-+      background: linear-gradient(#f9fbff, #eef3ff 70%);
-+      border: 1px solid #d9e1f2;
-+      cursor: crosshair;
-+    }
-+    @media (max-width: 980px) {
-+      body { grid-template-columns: 1fr; }
-+      canvas { height: 62vh; }
-+    }
-+  </style>
-+</head>
-+<body>
-+  <aside class="panel">
-+    <h1>塔台工程互动模拟</h1>
-+    <div class="section">
-+      <h2>搭建工具</h2>
-+      <div class="row">
-+        <label>木条长度(px)</label>
-+        <input type="range" id="stickLength" min="35" max="140" value="78" />
-+        <span id="stickLengthVal">78</span>
-+      </div>
-+      <div class="row">
-+        <label>木条单价(元)</label>
-+        <input type="number" id="stickCost" min="1" max="50" value="6" />
-+      </div>
-+      <div class="row">
-+        <button id="undoBtn" class="secondary">撤销一步</button>
-+        <button id="clearBtn" class="danger">清空重建</button>
-+      </div>
-+      <p class="hint" id="buildHint">先在地面点击建立支点，再从已有节点拖拽搭建。不能直接在空中单独放点。</p>
-+    </div>
-+
-+    <div class="section">
-+      <h2>环境测试</h2>
-+      <div class="row">
-+        <label>顶部重物(kg)</label>
-+        <input type="range" id="load" min="0" max="220" value="20" />
-+        <span id="loadVal">20</span>
-+      </div>
-+      <div class="row">
-+        <label>风力等级</label>
-+        <input type="range" id="wind" min="0" max="12" value="1" />
-+        <span id="windVal">1</span>
-+      </div>
-+      <div class="row">
-+        <label>地震强度</label>
-+        <input type="range" id="quake" min="0" max="10" value="0" />
-+        <span id="quakeVal">0</span>
-+      </div>
-+      <div class="row">
-+        <button id="testBtn">开始检验</button>
-+        <button id="pauseBtn" class="secondary">暂停扰动</button>
-+      </div>
-+    </div>
-+
-+    <div class="section">
-+      <h2>实时数据</h2>
-+      <div class="stats">
-+        <div>木条数量：<strong id="sticksCount">0</strong></div>
-+        <div>塔台高度：<strong id="heightVal">0.00 m</strong></div>
-+        <div>总造价：<strong id="costVal">0 元</strong></div>
-+        <div>稳定评分：<strong id="stabilityVal">100</strong></div>
-+        <div>安全状态：<strong id="statusVal" class="ok">稳固</strong></div>
-+      </div>
-+    </div>
-+  </aside>
-+
-+  <main class="canvas-wrap">
-+    <canvas id="simCanvas" width="1100" height="760"></canvas>
-+  </main>
-+
-+  <script>
-+    const canvas = document.getElementById('simCanvas');
-+    const ctx = canvas.getContext('2d');
-+    const baseY = () => canvas.height - 60;
-+
-+    const nodes = [];
-+    const sticks = [];
-+    const history = [];
-+    let dragFrom = null;
-+    let mouseX = 0;
-+    let mouseY = 0;
-+    let testing = false;
-+    let time = 0;
-+
-+    const ui = {
-+      stickLength: document.getElementById('stickLength'),
-+      stickLengthVal: document.getElementById('stickLengthVal'),
-+      stickCost: document.getElementById('stickCost'),
-+      load: document.getElementById('load'),
-+      loadVal: document.getElementById('loadVal'),
-+      wind: document.getElementById('wind'),
-+      windVal: document.getElementById('windVal'),
-+      quake: document.getElementById('quake'),
-+      quakeVal: document.getElementById('quakeVal'),
-+      sticksCount: document.getElementById('sticksCount'),
-+      heightVal: document.getElementById('heightVal'),
-+      costVal: document.getElementById('costVal'),
-+      stabilityVal: document.getElementById('stabilityVal'),
-+      statusVal: document.getElementById('statusVal'),
-+      buildHint: document.getElementById('buildHint')
-+    };
-+
-+    const syncLabels = () => {
-+      ui.stickLengthVal.textContent = ui.stickLength.value;
-+      ui.loadVal.textContent = ui.load.value;
-+      ui.windVal.textContent = ui.wind.value;
-+      ui.quakeVal.textContent = ui.quake.value;
-+    };
-+    ['input', 'change'].forEach(evt => {
-+      ui.stickLength.addEventListener(evt, syncLabels);
-+      ui.load.addEventListener(evt, syncLabels);
-+      ui.wind.addEventListener(evt, syncLabels);
-+      ui.quake.addEventListener(evt, syncLabels);
-+    });
-+    syncLabels();
-+
-+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-+
-+    function nearestNode(x, y, max = 14) {
-+      let best = null;
-+      let bestD = max;
-+      for (const n of nodes) {
-+        const d = Math.hypot(n.x - x, n.y - y);
-+        if (d < bestD) { best = n; bestD = d; }
-+      }
-+      return best;
-+    }
-+
-+    function createNode(x, y, fixed = false) {
-+      const node = { x, y, vx: 0, vy: 0, fixed };
-+      nodes.push(node);
-+      history.push({ type: 'node', node });
-+      return node;
-+    }
-+
-+    function hasStick(a, b) {
-+      return sticks.some(s => (s.a === a && s.b === b) || (s.a === b && s.b === a));
-+    }
-+
-+    function createStick(a, b) {
-+      if (!a || !b || a === b || hasStick(a, b)) return;
-+      sticks.push({ a, b, rest: dist(a, b), broken: false });
-+      history.push({ type: 'stick' });
-+    }
-+
-+    function undo() {
-+      const h = history.pop();
-+      if (!h) return;
-+      if (h.type === 'stick') {
-+        sticks.pop();
-+      } else {
-+        const removed = nodes.pop();
-+        for (let i = sticks.length - 1; i >= 0; i--) {
-+          if (sticks[i].a === removed || sticks[i].b === removed) sticks.splice(i, 1);
-+        }
-+      }
-+      updateStats();
-+    }
-+
-+    function clearAll() {
-+      nodes.length = 0;
-+      sticks.length = 0;
-+      history.length = 0;
-+      testing = false;
-+      ui.buildHint.textContent = '先在地面点击建立支点，再从已有节点拖拽搭建。不能直接在空中单独放点。';
-+      updateStats();
-+    }
-+
-+    function calculateHeightPx() {
-+      const attached = nodes.filter(n => n.y < baseY() + 1);
-+      if (!attached.length) return 0;
-+      return Math.max(0, baseY() - Math.min(...attached.map(n => n.y)));
-+    }
-+
-+    function computeStability() {
-+      const load = Number(ui.load.value);
-+      const wind = Number(ui.wind.value);
-+      const quake = Number(ui.quake.value);
-+      const h = calculateHeightPx();
-+      const supportNodes = nodes.filter(n => n.fixed).length;
-+      const baseXs = nodes.filter(n => n.fixed).map(n => n.x);
-+      const baseWidth = baseXs.length > 1 ? Math.max(...baseXs) - Math.min(...baseXs) : 25;
-+      const triangleLike = sticks.length > 0 ? sticks.length / Math.max(1, nodes.length - 1) : 0;
-+      const brokenCount = sticks.filter(s => s.broken).length;
-+
-+      let score = 100;
-+      score -= h * 0.11 + load * 0.18 + wind * 4.5 + quake * 6.3;
-+      score += Math.min(28, baseWidth * 0.09) + Math.min(20, supportNodes * 4) + Math.min(18, triangleLike * 10);
-+      score -= brokenCount * 20;
-+      return Math.max(0, Math.min(100, score));
-+    }
-+
-+    function updateStats() {
-+      const hMeters = (calculateHeightPx() / 85).toFixed(2);
-+      const totalCost = sticks.length * Math.max(1, Number(ui.stickCost.value) || 0);
-+      const stability = computeStability();
-+      ui.sticksCount.textContent = String(sticks.length);
-+      ui.heightVal.textContent = `${hMeters} m`;
-+      ui.costVal.textContent = `${totalCost} 元`;
-+      ui.stabilityVal.textContent = stability.toFixed(0);
-+
-+      let status = '稳固';
-+      let cls = 'ok';
-+      if (stability < 70) { status = '轻微晃动'; cls = 'danger-text'; }
-+      if (stability < 45) { status = '高风险'; cls = 'danger-text'; }
-+      if (stability < 25) { status = '正在倒塌'; cls = 'danger-text'; }
-+      ui.statusVal.textContent = status;
-+      ui.statusVal.className = cls;
-+    }
-+
-+    function getTopNode() {
-+      if (!nodes.length) return null;
-+      return nodes.reduce((a, b) => b.y < a.y ? b : a);
-+    }
-+
-+    function physicsStep() {
-+      const gravity = 0.25;
-+      const wind = Number(ui.wind.value);
-+      const quake = Number(ui.quake.value);
-+      const load = Number(ui.load.value);
-+
-+      for (const n of nodes) {
-+        if (n.fixed) continue;
-+        let fx = 0;
-+        let fy = gravity;
-+        if (testing) {
-+          fx += Math.sin(time * 0.03) * wind * 0.04;
-+          fx += Math.sin(time * 0.14) * quake * 0.08;
-+        }
-+        n.vx = (n.vx + fx) * 0.994;
-+        n.vy = (n.vy + fy) * 0.994;
-+      }
-+
-+      const top = getTopNode();
-+      if (testing && top && !top.fixed) {
-+        top.vy += load * 0.0015;
-+      }
-+
-+      for (let k = 0; k < 4; k++) {
-+        for (let i = sticks.length - 1; i >= 0; i--) {
-+          const s = sticks[i];
-+          const dx = s.b.x - s.a.x;
-+          const dy = s.b.y - s.a.y;
-+          const d = Math.hypot(dx, dy) || 0.001;
-+          const diff = (d - s.rest) / d;
-+          const strain = Math.abs(d - s.rest) / s.rest;
-+          const breakLimit = 0.42 - (Number(ui.load.value) * 0.0005);
-+          if (testing && strain > breakLimit) {
-+            sticks.splice(i, 1);
-+            continue;
-+          }
-+
-+          const pushX = dx * diff * 0.5;
-+          const pushY = dy * diff * 0.5;
-+          if (!s.a.fixed) { s.a.x += pushX; s.a.y += pushY; }
-+          if (!s.b.fixed) { s.b.x -= pushX; s.b.y -= pushY; }
-+        }
-+      }
-+
-+      for (const n of nodes) {
-+        if (!n.fixed) {
-+          n.x += n.vx;
-+          n.y += n.vy;
-+          if (n.y > baseY()) {
-+            n.y = baseY();
-+            n.vy *= -0.15;
-+            n.vx *= 0.85;
-+          }
-+        }
-+      }
-+    }
-+
-+    function drawGround() {
-+      ctx.fillStyle = '#dce8ff';
-+      ctx.fillRect(40, baseY(), canvas.width - 80, 22);
-+      ctx.strokeStyle = '#95a4c8';
-+      ctx.lineWidth = 2;
-+      ctx.beginPath();
-+      ctx.moveTo(40, baseY());
-+      ctx.lineTo(canvas.width - 40, baseY());
-+      ctx.stroke();
-+    }
-+
-+    function draw() {
-+      ctx.clearRect(0, 0, canvas.width, canvas.height);
-+      if (testing || nodes.some(n => !n.fixed)) physicsStep();
-+
-+      drawGround();
-+
-+      for (const s of sticks) {
-+        const stretch = Math.abs(dist(s.a, s.b) - s.rest) / s.rest;
-+        ctx.strokeStyle = stretch > 0.2 ? '#d64747' : '#9b6b3d';
-+        ctx.lineWidth = 6;
-+        ctx.lineCap = 'round';
-+        ctx.beginPath();
-+        ctx.moveTo(s.a.x, s.a.y);
-+        ctx.lineTo(s.b.x, s.b.y);
-+        ctx.stroke();
-+
-+        ctx.strokeStyle = '#be8551';
-+        ctx.lineWidth = 2;
-+        ctx.beginPath();
-+        ctx.moveTo(s.a.x, s.a.y);
-+        ctx.lineTo(s.b.x, s.b.y);
-+        ctx.stroke();
-+      }
-+
-+      for (const n of nodes) {
-+        ctx.fillStyle = n.fixed ? '#1b7f43' : '#26355d';
-+        ctx.beginPath();
-+        ctx.arc(n.x, n.y, 5, 0, Math.PI * 2);
-+        ctx.fill();
-+      }
-+
-+      if (dragFrom) {
-+        const len = Number(ui.stickLength.value);
-+        const a = Math.atan2(mouseY - dragFrom.y, mouseX - dragFrom.x);
-+        const tx = dragFrom.x + Math.cos(a) * len;
-+        const ty = dragFrom.y + Math.sin(a) * len;
-+        ctx.setLineDash([7, 7]);
-+        ctx.strokeStyle = '#4e6fca';
-+        ctx.lineWidth = 3;
-+        ctx.beginPath();
-+        ctx.moveTo(dragFrom.x, dragFrom.y);
-+        ctx.lineTo(tx, ty);
-+        ctx.stroke();
-+        ctx.setLineDash([]);
-+      }
-+
-+      const top = getTopNode();
-+      if (top && Number(ui.load.value) > 0) {
-+        const load = Number(ui.load.value);
-+        const w = 22 + Math.min(52, load * 0.18);
-+        const h = 16 + Math.min(32, load * 0.1);
-+        ctx.fillStyle = '#444';
-+        ctx.fillRect(top.x - w / 2, top.y - h - 5, w, h);
-+        ctx.fillStyle = '#f7f7f7';
-+        ctx.font = '12px sans-serif';
-+        ctx.fillText(`${load}kg`, top.x - w / 2 + 4, top.y - 12);
-+      }
-+
-+      if (testing && computeStability() < 20 && sticks.length === 0 && nodes.length > 0) {
-+        ctx.fillStyle = 'rgba(205, 49, 49, 0.17)';
-+        ctx.fillRect(0, 0, canvas.width, canvas.height);
-+        ui.buildHint.textContent = '结构已倒塌：木条全部断裂。请加宽底座并增加三角支撑。';
-+      }
-+
-+      updateStats();
-+      time += 1;
-+      requestAnimationFrame(draw);
-+    }
-+
-+    canvas.addEventListener('mousemove', e => {
-+      const r = canvas.getBoundingClientRect();
-+      mouseX = (e.clientX - r.left) * (canvas.width / r.width);
-+      mouseY = (e.clientY - r.top) * (canvas.height / r.height);
-+    });
-+
-+    canvas.addEventListener('mousedown', e => {
-+      const r = canvas.getBoundingClientRect();
-+      const x = (e.clientX - r.left) * (canvas.width / r.width);
-+      const y = (e.clientY - r.top) * (canvas.height / r.height);
-+      const near = nearestNode(x, y, 14);
-+
-+      if (near) {
-+        dragFrom = near;
-+        return;
-+      }
-+
-+      if (Math.abs(y - baseY()) <= 14) {
-+        createNode(x, baseY(), true);
-+        ui.buildHint.textContent = '已添加地面支点，继续从节点拖拽搭建。';
-+      } else {
-+        ui.buildHint.textContent = '不能在空中直接放点：请先点击地面，或从已有节点拖拽生成新节点。';
-+      }
-+      updateStats();
-+    });
-+
-+    canvas.addEventListener('mouseup', e => {
-+      if (!dragFrom) return;
-+      const r = canvas.getBoundingClientRect();
-+      const x = (e.clientX - r.left) * (canvas.width / r.width);
-+      const y = (e.clientY - r.top) * (canvas.height / r.height);
-+      const len = Number(ui.stickLength.value);
-+
-+      let target = nearestNode(x, y, 14);
-+      if (!target) {
-+        const a = Math.atan2(y - dragFrom.y, x - dragFrom.x);
-+        const nx = dragFrom.x + Math.cos(a) * len;
-+        const nyRaw = dragFrom.y + Math.sin(a) * len;
-+        const ny = Math.min(baseY(), nyRaw);
-+        const fixed = Math.abs(ny - baseY()) < 2;
-+        target = createNode(nx, ny, fixed);
-+      }
-+
-+      createStick(dragFrom, target);
-+      dragFrom = null;
-+      ui.buildHint.textContent = '已连接木条。可调重物、风、地震后点击“开始检验”。';
-+      updateStats();
-+    });
-+
-+    document.getElementById('testBtn').addEventListener('click', () => {
-+      testing = true;
-+      ui.buildHint.textContent = '检验中：观察是否发生形变、断裂与倒塌。';
-+    });
-+    document.getElementById('pauseBtn').addEventListener('click', () => {
-+      testing = false;
-+      ui.buildHint.textContent = '已暂停扰动。可继续搭建后再次检验。';
-+    });
-+    document.getElementById('undoBtn').addEventListener('click', undo);
-+    document.getElementById('clearBtn').addEventListener('click', clearAll);
-+
-+    draw();
-+  </script>
-+</body>
-+</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>六年级科学：塔台工程 v6.4 (增强交叉点识别+利用现有节点)</title>
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
+        
+        #canvas-container {
+            flex-grow: 1; height: 100vh; position: relative;
+            background: radial-gradient(circle at center, #ffffff 0%, #eef2f3 100%);
+            cursor: crosshair;
+        }
+
+        #sidebar {
+            width: 360px; height: 100vh; background: #fff;
+            border-left: 1px solid #dcdcdc; display: flex; flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.05); z-index: 100;
+        }
+
+        .sidebar-scroll { padding: 20px; overflow-y: auto; flex-grow: 1; }
+
+        h2 { font-size: 16px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 20px 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
+        h2:first-child { margin-top: 0; }
+        
+        .mode-btn {
+            width: 100%; padding: 15px; border: none; border-radius: 8px;
+            font-size: 18px; font-weight: bold; cursor: pointer; color: white;
+            transition: all 0.3s; margin-bottom: 20px;
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+        }
+        .mode-btn.testing {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+        }
+        .mode-btn:active { transform: scale(0.98); }
+
+        .material-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        .mat-option {
+            flex: 1; padding: 10px 5px; border: 2px solid #ecf0f1; border-radius: 6px;
+            text-align: center; cursor: pointer; transition: all 0.2s; font-size: 12px;
+            background: #f9f9f9;
+        }
+        .mat-option:hover { border-color: #bdc3c7; }
+        .mat-option.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
+        .mat-color { width: 12px; height: 12px; border-radius: 50%; margin: 0 auto 5px; }
+
+        .slider-group { margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 6px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: #555; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        
+        .stat-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; color: #555; }
+        .total-cost { font-size: 24px; color: #e67e22; font-weight: bold; text-align: right; margin-top: 10px; }
+        .formula-note { font-size: 12px; color: #7f8c8d; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 8px; }
+        
+        #toast {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.85); color: white; padding: 8px 20px;
+            border-radius: 30px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+        }
+        
+        .btn-group { display: flex; gap: 8px; margin-top: 15px; }
+        .btn-small {
+            background: #ecf0f1; border: none; padding: 8px 0; border-radius: 4px;
+            cursor: pointer; color: #7f8c8d; font-size: 12px; flex: 1;
+        }
+        .btn-small:hover { background: #ffeaa7; color: #d35400; }
+        .btn-small.danger { background: #fde6e6; color: #c0392b; }
+        .btn-small.danger:hover { background: #f5b7b1; }
+
+        #delete-mode-toggle {
+            background: #ecf0f1; border: 2px solid #bdc3c7; border-radius: 4px;
+            padding: 8px; text-align: center; cursor: pointer; font-size: 12px; margin-top: 10px;
+        }
+        #delete-mode-toggle.active {
+            background: #e74c3c; border-color: #c0392b; color: white;
+        }
+
+        .btn-special {
+            background: #3498db; color: white; width: 100%; padding: 10px;
+            border: none; border-radius: 4px; margin-top: 15px; cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-special:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="simCanvas"></canvas>
+        <div id="toast">提示信息</div>
+    </div>
+
+    <div id="sidebar">
+        <div class="sidebar-scroll">
+            <button id="btn-mode" class="mode-btn" onclick="toggleSimulation()">▶️ 开始测试</button>
+
+            <h2>🏗️ 材料选择 (点击切换)</h2>
+            <div class="material-group">
+                <div class="mat-option active" onclick="setMaterial('wood')" id="mat-wood">
+                    <div class="mat-color" style="background:#8e44ad"></div>
+                    <div>普通木条<br>¥2/cm</div>
+                </div>
+                <div class="mat-option" onclick="setMaterial('steel')" id="mat-steel">
+                    <div class="mat-color" style="background:#2c3e50"></div>
+                    <div>加强钢材<br>¥8/cm</div>
+                </div>
+                <div class="mat-option" onclick="setMaterial('carbon')" id="mat-carbon">
+                    <div class="mat-color" style="background:#2980b9"></div>
+                    <div>碳纤维<br>¥20/cm</div>
+                </div>
+            </div>
+            <div style="font-size:12px; color:#7f8c8d; margin-top:5px;">
+                * 当前选择材料将用于新建的木条和节点。
+            </div>
+
+            <h2>🎛️ 环境测试台</h2>
+            <div class="slider-group">
+                <div class="slider-label"><span>💨 风力等级</span> <span id="val-wind">0级</span></div>
+                <input type="range" min="0" max="100" value="0" oninput="updateEnv('wind', this.value)" disabled id="slider-wind">
+            </div>
+            <div class="slider-group">
+                <div class="slider-label"><span>🌋 地震强度</span> <span id="val-quake">0级</span></div>
+                <input type="range" min="0" max="100" value="0" oninput="updateEnv('quake', this.value)" disabled id="slider-quake">
+            </div>
+            <div class="slider-group">
+                <div class="slider-label"><span>⚖️ 顶部压重</span> <span id="val-load">0kg</span></div>
+                <input type="range" min="0" max="100" value="0" oninput="updateEnv('load', this.value)" disabled id="slider-load">
+            </div>
+
+            <h2>📊 工程造价单</h2>
+            <div class="stat-row"><span>节点数量:</span> <span id="stat-nodes">0</span> × ¥50</div>
+            <div class="stat-row"><span>杆件总长:</span> <span id="stat-total-length">0 cm</span></div>
+            <div class="stat-row"><span>木条长度:</span> <span id="stat-len-wood">0 cm</span> (¥2/cm)</div>
+            <div class="stat-row"><span>钢材长度:</span> <span id="stat-len-steel">0 cm</span> (¥8/cm)</div>
+            <div class="stat-row"><span>碳纤长度:</span> <span id="stat-len-carbon">0 cm</span> (¥20/cm)</div>
+            <div class="total-cost">¥<span id="stat-cost">0</span></div>
+            <div class="formula-note">
+                <strong>计算公式：</strong><br>
+                节点成本 = 节点数 × ¥50<br>
+                杆件成本 = Σ(各材料长度 × 单价)<br>
+                总造价 = 节点成本 + 杆件成本
+            </div>
+
+            <div style="display: flex; gap: 8px; margin: 20px 0 10px;">
+                <button class="btn-small" onclick="undo()">↩️ 撤销</button>
+                <button class="btn-small danger" onclick="clearAll()">🗑️ 全部清空</button>
+            </div>
+            <div id="delete-mode-toggle" onclick="toggleDeleteMode()">✂️ 删除模式 (关闭)</div>
+            
+            <button class="btn-special" onclick="autoConnectIntersections()">🔗 自动连接交叉点</button>
+        </div>
+    </div>
+
+<script>
+    (function() {
+        // --- 全局变量定义 ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        // --- 材料库 ---
+        const MATERIALS = {
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 180, nodeStrength: 200, mass: 0.1, angleStrength: 0.05 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 500, nodeStrength: 600, mass: 0.3, angleStrength: 0.08 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 800, nodeStrength: 800, mass: 0.05, angleStrength: 0.12 }
+        };
+
+        const CONFIG = {
+            gravity: 0.5,
+            groundHeight: 60,
+            snapDist: 15,
+            maxStickLen: 120,
+            scale: 10,
+            nodeBaseCost: 50,
+            angleStiffness: 0.1,
+            angleIterations: 3
+        };
+
+        // --- 全局状态 ---
+        let width, height, groundY;
+        let points = [];
+        let sticks = [];
+        let isSimulating = false;
+        let currentMat = 'wood';
+        let blueprint = null;                // 存储测试开始的完好状态
+        let env = { wind: 0, quake: 0, load: 0 };
+        let mouse = { x: 0, y: 0 };
+        let dragStart = null;
+        let isDragging = false;
+        let hoveredPoint = null;
+        let hoveredStick = null;              // 用于删除模式
+        let preheatRemaining = 0;
+        let angleConstraints = [];
+
+        // 断裂顺序记录
+        let nextBreakOrder = 1;                // 下一个断裂序号
+        const MAX_BREAKS_TO_HIGHLIGHT = 3;      // 最多标注前三个
+
+        // 历史记录
+        let historyStack = [];
+        const MAX_HISTORY = 20;
+
+        // 删除模式
+        let deleteMode = false;
+
+        // --- 点类 ---
+        class Point {
+            constructor(x, y, pinned, matId) {
+                this.x = x; this.y = y;
+                this.oldx = x; this.oldy = y;
+                this.pinned = pinned;
+                this.mat = MATERIALS[matId];
+                this.baseX = x;
+                this.broken = false;          // 当前是否折断（物理模拟用）
+                this.wasBroken = false;        // 历史是否折断过
+                this.breakOrder = 0;            // 断裂顺序，0表示未断裂
+            }
+
+            update() {
+                if (this.broken) {
+                    let vx = (this.x - this.oldx) * 0.98;
+                    let vy = (this.y - this.oldy) * 0.98;
+
+                    this.oldx = this.x;
+                    this.oldy = this.y;
+
+                    this.y += CONFIG.gravity;
+
+                    if (isSimulating && env.wind > 0) {
+                        let windForce = (groundY - this.y) / 1000 * (env.wind / 20);
+                        this.x += windForce + (Math.random()-0.5) * (env.wind/200);
+                    }
+
+                    this.x += vx;
+                    this.y += vy;
+
+                    if (this.y > groundY) {
+                        this.y = groundY;
+                        this.oldy = this.y + vy * 0.5;
+                    }
+                    return;
+                }
+
+                if (!isSimulating) {
+                    this.oldx = this.x;
+                    this.oldy = this.y;
+                    return;
+                }
+
+                if (this.pinned) {
+                    if (env.quake > 0) {
+                        let intensity = env.quake / 5;
+                        this.x = this.baseX + Math.sin(Date.now() / 50) * intensity;
+                    } else {
+                        this.x += (this.baseX - this.x) * 0.1;
+                    }
+                    this.y = groundY;
+                    this.oldx = this.x;
+                    return;
+                }
+
+                let vx = (this.x - this.oldx) * 0.98;
+                let vy = (this.y - this.oldy) * 0.98;
+
+                this.oldx = this.x;
+                this.oldy = this.y;
+
+                this.y += CONFIG.gravity * this.mat.mass;
+
+                if (groundY - this.y > 100) {
+                    this.y += (env.load * 0.05);
+                }
+
+                if (env.wind > 0) {
+                    let windForce = (groundY - this.y) / 1000 * (env.wind / 20);
+                    this.x += windForce + (Math.random()-0.5) * (env.wind/200);
+                }
+
+                this.x += vx;
+                this.y += vy;
+
+                if (this.y > groundY) {
+                    this.y = groundY;
+                    this.oldy = this.y + vy * 0.5;
+                }
+            }
+        }
+
+        // --- 杆件类 ---
+        class Stick {
+            constructor(p1, p2, matId) {
+                this.p1 = p1;
+                this.p2 = p2;
+                this.mat = MATERIALS[matId];
+                this.len = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                this.stress = 0;
+                this.broken = false;           // 当前是否折断
+                this.wasBroken = false;         // 历史是否折断过
+                this.breakOrder = 0;             // 断裂顺序
+            }
+
+            update() {
+                if (this.broken) return;
+
+                if (!isSimulating) {
+                    this.len = Math.hypot(this.p1.x - this.p2.x, this.p1.y - this.p2.y);
+                    return;
+                }
+
+                let dx = this.p2.x - this.p1.x;
+                let dy = this.p2.y - this.p1.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist === 0) return;
+
+                this.stress = Math.abs(dist - this.len);
+
+                if (preheatRemaining <= 0) {
+                    // 杆件自身强度断裂
+                    if (this.stress > this.mat.strength && !this.broken) {
+                        this.broken = true;
+                        this.wasBroken = true;
+                        this.breakOrder = nextBreakOrder++;
+                    }
+
+                    // 节点强度断裂（拉力破坏）
+                    if (this.stress > Math.min(this.p1.mat.nodeStrength, this.p2.mat.nodeStrength)) {
+                        if (this.p1.mat.nodeStrength < this.stress && !this.p1.pinned && !this.p1.broken) {
+                            this.p1.broken = true;
+                            this.p1.wasBroken = true;
+                            this.p1.breakOrder = nextBreakOrder++;
+                        }
+                        if (this.p2.mat.nodeStrength < this.stress && !this.p2.pinned && !this.p2.broken) {
+                            this.p2.broken = true;
+                            this.p2.wasBroken = true;
+                            this.p2.breakOrder = nextBreakOrder++;
+                        }
+                    }
+                }
+
+                let diff = this.len - dist;
+                let percent = diff / dist / 2;
+                let ox = dx * percent;
+                let oy = dy * percent;
+
+                if (!this.p1.pinned) { this.p1.x -= ox; this.p1.y -= oy; }
+                if (!this.p2.pinned) { this.p2.x += ox; this.p2.y += oy; }
+            }
+
+            draw() {
+                // 停止测试后，如果曾经断裂且断裂顺序 <= MAX_BREAKS_TO_HIGHLIGHT，用醒目红色标注
+                if (!isSimulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= MAX_BREAKS_TO_HIGHLIGHT) {
+                    // 红色粗外轮廓 + 原色内线
+                    ctx.beginPath();
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 8;
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.strokeStyle = this.mat.color;
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                    return;
+                }
+
+                // 模拟中或未断裂的正常绘制
+                if (this.broken) {
+                    // 模拟中断裂的构件只用原色绘制
+                    ctx.beginPath();
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.strokeStyle = this.mat.color;
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                    return;
+                }
+
+                // 正常杆件
+                ctx.beginPath();
+                let color = this.mat.color;
+                let width = 4;
+
+                if (isSimulating) {
+                    let ratio = Math.min(this.stress / (this.mat.strength * 0.8), 1);
+                    if (ratio > 0.5) {
+                        ctx.strokeStyle = `rgb(255, ${200 * (1-ratio)}, 0)`;
+                    } else {
+                        ctx.strokeStyle = color;
+                    }
+                } else {
+                    ctx.strokeStyle = color;
+                }
+
+                ctx.lineWidth = width;
+                ctx.lineCap = 'round';
+                ctx.moveTo(this.p1.x, this.p1.y);
+                ctx.lineTo(this.p2.x, this.p2.y);
+                ctx.stroke();
+            }
+        }
+
+        // --- 初始化 ---
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            addPoint(width/2 - 60, groundY, true, 'wood');
+            addPoint(width/2 + 60, groundY, true, 'wood');
+            saveHistory(); // 初始状态保存
+            loop();
+        }
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            groundY = height - CONFIG.groundHeight;
+            points.forEach(p => { if(p.pinned) p.y = groundY; });
+        }
+
+        function addPoint(x, y, pinned, matId) {
+            let p = new Point(x, y, pinned, matId);
+            points.push(p);
+            return p;
+        }
+
+        // --- 历史记录 ---
+        function saveHistory() {
+            let snapshot = {
+                points: points.map(p => ({
+                    x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id,
+                    broken: p.broken, wasBroken: p.wasBroken, breakOrder: p.breakOrder
+                })),
+                sticks: sticks.map(s => {
+                    let p1Idx = points.indexOf(s.p1);
+                    let p2Idx = points.indexOf(s.p2);
+                    return {
+                        p1Idx, p2Idx,
+                        matId: s.mat.id,
+                        broken: s.broken, wasBroken: s.wasBroken, breakOrder: s.breakOrder,
+                        len: s.len
+                    };
+                })
+            };
+            historyStack.push(snapshot);
+            if (historyStack.length > MAX_HISTORY) historyStack.shift();
+        }
+
+        function restoreFromHistory(snapshot) {
+            points = snapshot.points.map(p => {
+                let pt = new Point(p.x, p.y, p.pinned, p.matId);
+                pt.broken = p.broken;
+                pt.wasBroken = p.wasBroken;
+                pt.breakOrder = p.breakOrder;
+                return pt;
+            });
+            sticks = snapshot.sticks.map(s => {
+                let p1 = points[s.p1Idx];
+                let p2 = points[s.p2Idx];
+                let st = new Stick(p1, p2, s.matId);
+                st.broken = s.broken;
+                st.wasBroken = s.wasBroken;
+                st.breakOrder = s.breakOrder;
+                st.len = s.len || Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                return st;
+            });
+            angleConstraints = [];
+        }
+
+        function undo() {
+            if (isSimulating) { showToast("测试中不能撤销"); return; }
+            if (historyStack.length <= 1) { showToast("没有更多步骤"); return; }
+            historyStack.pop();
+            let prev = historyStack[historyStack.length-1];
+            restoreFromHistory(prev);
+            showToast("撤销成功");
+        }
+
+        // --- 删除模式 ---
+        function toggleDeleteMode() {
+            if (isSimulating) { showToast("测试中不能删除"); return; }
+            deleteMode = !deleteMode;
+            document.getElementById('delete-mode-toggle').innerText = deleteMode ? '✂️ 删除模式 (开启)' : '✂️ 删除模式 (关闭)';
+            document.getElementById('delete-mode-toggle').classList.toggle('active', deleteMode);
+        }
+
+        function deletePoint(point) {
+            let idx = points.indexOf(point);
+            if (idx === -1) return;
+            sticks = sticks.filter(s => s.p1 !== point && s.p2 !== point);
+            points.splice(idx, 1);
+        }
+
+        function deleteStick(stick) {
+            let idx = sticks.indexOf(stick);
+            if (idx !== -1) sticks.splice(idx, 1);
+        }
+
+        // --- 自动连接交叉点 (增强版) ---
+        function autoConnectIntersections() {
+            if (isSimulating) { showToast("测试中不能使用此功能"); return; }
+            if (sticks.length < 2) { showToast("至少需要两根杆件"); return; }
+
+            saveHistory(); // 记录操作前状态
+
+            // 用于记录每个交点需要处理的杆件，按交点坐标分组
+            const intersectionGroups = new Map(); // 键: "x,y" 字符串，值: { point: {x,y}, sticks: Set<Stick> }
+
+            // 遍历所有杆件对
+            for (let i = 0; i < sticks.length; i++) {
+                for (let j = i+1; j < sticks.length; j++) {
+                    let s1 = sticks[i];
+                    let s2 = sticks[j];
+
+                    // 如果两根杆件有公共端点，跳过（已经连接）
+                    if (s1.p1 === s2.p1 || s1.p1 === s2.p2 || s1.p2 === s2.p1 || s1.p2 === s2.p2) continue;
+
+                    // 计算线段交点
+                    let p1 = s1.p1, p2 = s1.p2, p3 = s2.p1, p4 = s2.p2;
+                    let denom = (p4.y - p3.y)*(p2.x - p1.x) - (p4.x - p3.x)*(p2.y - p1.y);
+                    if (Math.abs(denom) < 1e-10) continue; // 平行
+
+                    let ua = ((p4.x - p3.x)*(p1.y - p3.y) - (p4.y - p3.y)*(p1.x - p3.x)) / denom;
+                    let ub = ((p2.x - p1.x)*(p1.y - p3.y) - (p2.y - p1.y)*(p1.x - p3.x)) / denom;
+
+                    // 允许微小容差，但排除端点附近（避免在端点处拆分）
+                    const EPS = 1e-5;
+                    if (ua < EPS || ua > 1 - EPS || ub < EPS || ub > 1 - EPS) continue;
+
+                    // 计算交点坐标
+                    let ix = p1.x + ua * (p2.x - p1.x);
+                    let iy = p1.y + ua * (p2.y - p1.y);
+
+                    // 查找附近是否存在已有节点（距离 < snapDist）
+                    let existingNode = null;
+                    for (let p of points) {
+                        if (Math.hypot(p.x - ix, p.y - iy) < CONFIG.snapDist) {
+                            existingNode = p;
+                            break;
+                        }
+                    }
+
+                    // 决定连接点坐标（如果已有节点，使用其精确坐标；否则使用交点坐标）
+                    let connectX = existingNode ? existingNode.x : ix;
+                    let connectY = existingNode ? existingNode.y : iy;
+                    let key = `${connectX.toFixed(2)},${connectY.toFixed(2)}`;
+
+                    if (!intersectionGroups.has(key)) {
+                        intersectionGroups.set(key, {
+                            point: { x: connectX, y: connectY },
+                            existingNode: existingNode,
+                            sticks: new Set()
+                        });
+                    }
+                    let group = intersectionGroups.get(key);
+                    group.sticks.add(s1);
+                    group.sticks.add(s2);
+                }
+            }
+
+            // 处理每个交点组
+            let newNodesCount = 0;
+            let processedSticks = new Set(); // 全局已处理杆件，避免重复拆分
+
+            for (let [key, group] of intersectionGroups.entries()) {
+                // 如果该组内杆件数量少于2，理论上不会发生，但防御性处理
+                if (group.sticks.size < 2) continue;
+
+                // 确定连接节点：如果已有现成节点，直接使用；否则创建新节点
+                let connectNode = group.existingNode;
+                if (!connectNode) {
+                    connectNode = addPoint(group.point.x, group.point.y, false, currentMat);
+                    newNodesCount++;
+                }
+
+                // 遍历组内的所有杆件，进行拆分
+                for (let stick of group.sticks) {
+                    if (processedSticks.has(stick)) continue; // 已经处理过
+
+                    // 检查该杆件是否真的经过连接点附近（避免误拆）
+                    // 简单验证：杆件两端到连接点的距离之和 约等于 杆件长度
+                    let d1 = Math.hypot(stick.p1.x - connectNode.x, stick.p1.y - connectNode.y);
+                    let d2 = Math.hypot(stick.p2.x - connectNode.x, stick.p2.y - connectNode.y);
+                    let stickLen = Math.hypot(stick.p1.x - stick.p2.x, stick.p1.y - stick.p2.y);
+                    if (Math.abs(d1 + d2 - stickLen) > 1) continue; // 不在这根杆件上，跳过
+
+                    // 从全局杆件列表中移除原杆件
+                    let idx = sticks.indexOf(stick);
+                    if (idx === -1) continue;
+                    sticks.splice(idx, 1);
+                    processedSticks.add(stick);
+
+                    // 创建两段新杆件（使用相同材料）
+                    let matId = stick.mat.id;
+                    sticks.push(new Stick(stick.p1, connectNode, matId));
+                    sticks.push(new Stick(connectNode, stick.p2, matId));
+                }
+            }
+
+            if (newNodesCount > 0 || processedSticks.size > 0) {
+                showToast(`已处理 ${processedSticks.size} 根杆件，新增 ${newNodesCount} 个节点`);
+            } else {
+                showToast("未发现需要连接的交叉点");
+            }
+        }
+
+        // --- 角度约束构建 ---
+        function buildAngleConstraints() {
+            angleConstraints = [];
+            for (let node of points) {
+                if (node.broken) continue;
+                let neighbors = [];
+                for (let s of sticks) {
+                    if (s.broken) continue;
+                    let other = null;
+                    if (s.p1 === node) other = s.p2;
+                    else if (s.p2 === node) other = s.p1;
+                    if (!other || other.broken) continue;
+
+                    let dx = other.x - node.x;
+                    let dy = other.y - node.y;
+                    let len = Math.hypot(dx, dy);
+                    if (len < 0.01) continue;
+                    let dirX = dx / len;
+                    let dirY = dy / len;
+                    neighbors.push({
+                        point: other,
+                        initDirX: dirX,
+                        initDirY: dirY
+                    });
+                }
+                if (neighbors.length >= 2) {
+                    angleConstraints.push({ node, neighbors });
+                }
+            }
+        }
+
+        function applyAngleConstraints(iterations) {
+            let stiffness = CONFIG.angleStiffness;
+            for (let iter = 0; iter < iterations; iter++) {
+                for (let c of angleConstraints) {
+                    let node = c.node;
+                    if (node.broken) continue;
+                    for (let nb of c.neighbors) {
+                        let p = nb.point;
+                        if (p.broken) continue;
+                        if (node.pinned && p.pinned) continue;
+
+                        let dx = p.x - node.x;
+                        let dy = p.y - node.y;
+                        let dist = Math.hypot(dx, dy);
+                        if (dist < 0.01) continue;
+
+                        let tx = nb.initDirX;
+                        let ty = nb.initDirY;
+
+                        let targetX = node.x + tx * dist;
+                        let targetY = node.y + ty * dist;
+
+                        let moveX = (targetX - p.x) * stiffness;
+                        let moveY = (targetY - p.y) * stiffness;
+
+                        if (!node.pinned && !p.pinned) {
+                            p.x += moveX;
+                            p.y += moveY;
+                            node.x -= moveX;
+                            node.y -= moveY;
+                            p.oldx = p.x;
+                            p.oldy = p.y;
+                            node.oldx = node.x;
+                            node.oldy = node.y;
+                        } else if (!p.pinned) {
+                            p.x += moveX;
+                            p.y += moveY;
+                            p.oldx = p.x;
+                            p.oldy = p.y;
+                        } else if (!node.pinned) {
+                            node.x -= moveX;
+                            node.y -= moveY;
+                            node.oldx = node.x;
+                            node.oldy = node.y;
+                        }
+                    }
+                }
+            }
+        }
+
+        function checkAngleBreaks() {
+            let newBroken = false;
+            for (let c of angleConstraints) {
+                let node = c.node;
+                if (node.broken) continue;
+                let maxAngleDiff = 0;
+                let neighbors = c.neighbors;
+                for (let i = 0; i < neighbors.length; i++) {
+                    for (let j = i+1; j < neighbors.length; j++) {
+                        let a = neighbors[i];
+                        let b = neighbors[j];
+                        let ax = a.point.x - node.x;
+                        let ay = a.point.y - node.y;
+                        let bx = b.point.x - node.x;
+                        let by = b.point.y - node.y;
+                        let lenA = Math.hypot(ax, ay);
+                        let lenB = Math.hypot(bx, by);
+                        if (lenA < 0.01 || lenB < 0.01) continue;
+                        let dot = ax*bx + ay*by;
+                        let cross = ax*by - ay*bx;
+                        let curAngle = Math.atan2(cross, dot);
+
+                        let initDot = a.initDirX*b.initDirX + a.initDirY*b.initDirY;
+                        let initCross = a.initDirX*b.initDirY - a.initDirY*b.initDirX;
+                        let initAngle = Math.atan2(initCross, initDot);
+
+                        let diff = Math.abs(curAngle - initAngle);
+                        if (diff > Math.PI) diff = 2*Math.PI - diff;
+                        if (diff > maxAngleDiff) maxAngleDiff = diff;
+                    }
+                }
+                if (maxAngleDiff > node.mat.angleStrength && !node.broken) {
+                    node.broken = true;
+                    node.wasBroken = true;
+                    node.breakOrder = nextBreakOrder++;
+                    node.pinned = false;
+                    newBroken = true;
+                }
+            }
+            if (newBroken) {
+                angleConstraints = angleConstraints.filter(c => !c.node.broken);
+            }
+        }
+
+        // --- 主循环 ---
+        function loop() {
+            let iter = isSimulating ? 5 : 1;
+
+            if (preheatRemaining > 0) {
+                let steps = Math.min(5, preheatRemaining);
+                for (let s = 0; s < steps; s++) {
+                    for (let k = 0; k < iter; k++) {
+                        points.forEach(p => p.update());
+                        sticks.forEach(s => s.update());
+                        if (isSimulating && angleConstraints.length > 0) {
+                            applyAngleConstraints(1);
+                        }
+                    }
+                    preheatRemaining--;
+                }
+            } else {
+                for (let k = 0; k < iter; k++) {
+                    points.forEach(p => p.update());
+                    sticks.forEach(s => s.update());
+                    if (isSimulating && angleConstraints.length > 0) {
+                        applyAngleConstraints(1);
+                    }
+                }
+                if (isSimulating && angleConstraints.length > 0) {
+                    applyAngleConstraints(CONFIG.angleIterations);
+                    checkAngleBreaks();
+                }
+            }
+
+            ctx.clearRect(0, 0, width, height);
+            drawGrid();
+
+            ctx.fillStyle = "#95a5a6";
+            ctx.fillRect(0, groundY, width, CONFIG.groundHeight);
+
+            sticks.forEach(s => s.draw());
+
+            points.forEach(p => {
+                if (!isSimulating && p.wasBroken && p.breakOrder > 0 && p.breakOrder <= MAX_BREAKS_TO_HIGHLIGHT) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                    ctx.fillStyle = p.mat.color;
+                    ctx.fill();
+                    return;
+                }
+
+                if (p.broken) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                    ctx.fillStyle = p.mat.color;
+                    ctx.fill();
+                    return;
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.pinned ? 8 : 5, 0, Math.PI*2);
+                ctx.fillStyle = p.pinned ? "#34495e" : p.mat.color;
+                ctx.fill();
+                ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            if (deleteMode && !isSimulating) {
+                hoveredStick = null;
+                let stickDist = 10;
+                for (let s of sticks) {
+                    let d = distanceToSegment(mouse, s.p1, s.p2);
+                    if (d < stickDist) {
+                        stickDist = d;
+                        hoveredStick = s;
+                    }
+                }
+                if (hoveredStick) {
+                    ctx.beginPath();
+                    ctx.moveTo(hoveredStick.p1.x, hoveredStick.p1.y);
+                    ctx.lineTo(hoveredStick.p2.x, hoveredStick.p2.y);
+                    ctx.strokeStyle = '#e67e22';
+                    ctx.lineWidth = 8;
+                    ctx.setLineDash([5,5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            if (!isSimulating) drawInteraction();
+
+            updateStats();
+            requestAnimationFrame(loop);
+        }
+
+        function distanceToSegment(p, a, b) {
+            let abx = b.x - a.x, aby = b.y - a.y;
+            let apx = p.x - a.x, apy = p.y - a.y;
+            let ab2 = abx*abx + aby*aby;
+            if (ab2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+            let t = (apx*abx + apy*aby) / ab2;
+            t = Math.max(0, Math.min(1, t));
+            let projx = a.x + abx * t;
+            let projy = a.y + aby * t;
+            return Math.hypot(p.x - projx, p.y - projy);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "rgba(0,0,0,0.06)";
+            ctx.lineWidth = 1;
+            for(let x=0; x<width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); }
+            for(let y=height; y>0; y-=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke(); }
+        }
+
+        function drawInteraction() {
+            hoveredPoint = null;
+            let minDist = CONFIG.snapDist;
+            for (let p of points) {
+                if (p.broken) continue;
+                let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                if (d < minDist) { minDist = d; hoveredPoint = p; }
+            }
+
+            if (deleteMode) {
+                canvas.style.cursor = "cell";
+                if (hoveredPoint) {
+                    ctx.beginPath(); ctx.arc(hoveredPoint.x, hoveredPoint.y, 12, 0, Math.PI*2);
+                    ctx.strokeStyle = "#e74c3c";
+                    ctx.lineWidth = 3; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
+                }
+            } else {
+                if (hoveredPoint) {
+                    ctx.beginPath(); ctx.arc(hoveredPoint.x, hoveredPoint.y, 12, 0, Math.PI*2);
+                    ctx.strokeStyle = MATERIALS[currentMat].color; 
+                    ctx.lineWidth = 2; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
+                    canvas.style.cursor = "pointer";
+                } else if (mouse.y >= groundY - 10) {
+                    canvas.style.cursor = "cell";
+                } else {
+                    canvas.style.cursor = "default";
+                }
+            }
+
+            if (isDragging && dragStart && !deleteMode) {
+                let targetX = hoveredPoint ? hoveredPoint.x : mouse.x;
+                let targetY = hoveredPoint ? hoveredPoint.y : mouse.y;
+
+                let dx = targetX - dragStart.x;
+                let dy = targetY - dragStart.y;
+                let dist = Math.hypot(dx, dy);
+                let segments = Math.ceil(dist / CONFIG.maxStickLen);
+
+                ctx.beginPath();
+                ctx.moveTo(dragStart.x, dragStart.y);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = MATERIALS[currentMat].color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                if (segments > 1) {
+                    ctx.fillStyle = "#e67e22";
+                    ctx.font = "12px Arial";
+                    ctx.fillText(`${segments}段连接`, mouse.x + 10, mouse.y);
+                }
+            }
+        }
+
+        // --- 鼠标事件 ---
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            if (isSimulating) { showToast("⚠️ 测试中无法修改，请先停止！"); return; }
+            if (e.button === 2) return;
+
+            if (deleteMode) {
+                if (hoveredPoint) {
+                    saveHistory();
+                    deletePoint(hoveredPoint);
+                    showToast("删除节点");
+                } else if (hoveredStick) {
+                    saveHistory();
+                    deleteStick(hoveredStick);
+                    showToast("删除杆件");
+                }
+                return;
+            }
+
+            if (hoveredPoint) {
+                dragStart = hoveredPoint;
+                isDragging = true;
+            } else if (mouse.y > groundY - 15) {
+                let p = addPoint(mouse.x, groundY, true, currentMat);
+                dragStart = p;
+                isDragging = true;
+            }
+        });
+
+        canvas.addEventListener('mouseup', e => {
+            if (isSimulating || deleteMode) return;
+            if (!isDragging || !dragStart) return;
+
+            let endP = hoveredPoint;
+            let finalX = endP ? endP.x : mouse.x;
+            let finalY = endP ? endP.y : mouse.y;
+            if (!endP && finalY > groundY) finalY = groundY;
+
+            let dx = finalX - dragStart.x;
+            let dy = finalY - dragStart.y;
+            let dist = Math.hypot(dx, dy);
+
+            if (dist > 5) {
+                saveHistory();
+
+                let segments = Math.ceil(dist / CONFIG.maxStickLen);
+                let currentStart = dragStart;
+
+                for (let i = 1; i <= segments; i++) {
+                    let isLast = (i === segments);
+                    let nextP;
+
+                    if (isLast && endP) {
+                        nextP = endP;
+                    } else {
+                        let ratio = i / segments;
+                        let nx = dragStart.x + dx * ratio;
+                        let ny = dragStart.y + dy * ratio;
+                        let pin = (isLast && ny >= groundY - 1);
+                        if (pin) ny = groundY;
+                        nextP = addPoint(nx, ny, pin, currentMat);
+                    }
+
+                    if (currentStart !== nextP) {
+                        let exists = sticks.some(s => (s.p1 === currentStart && s.p2 === nextP) || (s.p1 === nextP && s.p2 === currentStart));
+                        if (!exists) sticks.push(new Stick(currentStart, nextP, currentMat));
+                    }
+                    currentStart = nextP;
+                }
+            }
+            isDragging = false;
+            dragStart = null;
+        });
+
+        canvas.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            if (isSimulating) return;
+            if (!deleteMode && hoveredPoint) {
+                saveHistory();
+                deletePoint(hoveredPoint);
+                showToast("删除节点");
+            }
+        });
+
+        // --- 蓝图存储 ---
+        function saveBlueprint() {
+            let savedPoints = points.map(p => ({
+                x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id
+            }));
+            let savedSticks = sticks.map(s => ({
+                p1_idx: points.indexOf(s.p1),
+                p2_idx: points.indexOf(s.p2),
+                matId: s.mat.id
+            }));
+            blueprint = { points: savedPoints, sticks: savedSticks };
+        }
+
+        function restoreBlueprint() {
+            if (!blueprint) return;
+            // 保存断裂信息（wasBroken 和 breakOrder）以便恢复后标注
+            let oldBrokenInfo = points.map(p => ({ wasBroken: p.wasBroken, breakOrder: p.breakOrder }));
+            let oldStickBroken = sticks.map(s => ({ wasBroken: s.wasBroken, breakOrder: s.breakOrder }));
+
+            points = [];
+            sticks = [];
+            blueprint.points.forEach(bp => addPoint(bp.x, bp.y, bp.pinned, bp.matId));
+            blueprint.sticks.forEach(bs => {
+                if (points[bs.p1_idx] && points[bs.p2_idx]) {
+                    sticks.push(new Stick(points[bs.p1_idx], points[bs.p2_idx], bs.matId));
+                }
+            });
+
+            // 恢复断裂信息
+            for (let i = 0; i < points.length && i < oldBrokenInfo.length; i++) {
+                points[i].wasBroken = oldBrokenInfo[i].wasBroken;
+                points[i].breakOrder = oldBrokenInfo[i].breakOrder;
+            }
+            for (let i = 0; i < sticks.length && i < oldStickBroken.length; i++) {
+                sticks[i].wasBroken = oldStickBroken[i].wasBroken;
+                sticks[i].breakOrder = oldStickBroken[i].breakOrder;
+            }
+        }
+
+        function hasAnyBroken() {
+            for (let p of points) if (p.broken) return true;
+            for (let s of sticks) if (s.broken) return true;
+            return false;
+        }
+
+        // --- 全局函数 ---
+        window.setMaterial = (matId) => {
+            currentMat = matId;
+            document.querySelectorAll('.mat-option').forEach(el => el.classList.remove('active'));
+            document.getElementById('mat-' + matId).classList.add('active');
+            showToast(`已切换材料为：${MATERIALS[matId].name}`);
+        };
+
+        window.updateEnv = (type, val) => {
+            env[type] = parseInt(val);
+            let text = val;
+            if (type === 'wind' || type === 'quake') text += "级";
+            if (type === 'load') text += "kg";
+            document.getElementById(`val-${type}`).innerText = text;
+        };
+
+        window.toggleSimulation = () => {
+            const btn = document.getElementById('btn-mode');
+            const sliders = document.querySelectorAll('input[type=range]');
+
+            if (!isSimulating) {
+                // 开始测试：清除所有历史断裂标记（wasBroken 和 breakOrder），确保从干净状态开始
+                points.forEach(p => { p.wasBroken = false; p.breakOrder = 0; });
+                sticks.forEach(s => { s.wasBroken = false; s.breakOrder = 0; });
+                if (hasAnyBroken()) {
+                    restoreBlueprint(); // 但 blueprint 应该也是干净的，因为 wasBroken 已清
+                }
+                saveBlueprint();
+                nextBreakOrder = 1;
+                points.forEach(p => { p.broken = false; });
+                sticks.forEach(s => { s.broken = false; });
+                angleConstraints = [];
+                buildAngleConstraints();
+                isSimulating = true;
+                preheatRemaining = 40;
+                btn.innerHTML = "⏹️ 停止测试";
+                btn.classList.add('testing');
+                sliders.forEach(s => s.disabled = false);
+                showToast("测试开始：结构正在缓慢稳定中...");
+            } else {
+                restoreBlueprint();
+                isSimulating = false;
+                preheatRemaining = 0;
+                angleConstraints = [];
+                btn.innerHTML = "▶️ 开始测试";
+                btn.classList.remove('testing');
+                sliders.forEach(s => { s.value = 0; s.disabled = true; });
+                env = { wind: 0, quake: 0, load: 0 };
+                document.getElementById('val-wind').innerText = "0级";
+                document.getElementById('val-quake').innerText = "0级";
+                document.getElementById('val-load').innerText = "0kg";
+                // 如果没有新断裂，则所有 wasBroken 为 false，不会显示红色；如果有，则显示
+                showToast("场景已复原");
+            }
+        };
+
+        window.clearAll = () => {
+            if (isSimulating) return;
+            if (confirm("确定要清空所有设计吗？")) {
+                points = []; sticks = [];
+                init();
+                blueprint = null;
+                nextBreakOrder = 1;
+                saveHistory();
+                showToast("已清空");
+            }
+        };
+
+        window.undo = () => {
+            undo();
+        };
+
+        window.toggleDeleteMode = () => {
+            toggleDeleteMode();
+        };
+
+        window.autoConnectIntersections = () => {
+            autoConnectIntersections();
+        };
+
+        function showToast(msg) {
+            let t = document.getElementById('toast');
+            if (t) {
+                t.innerText = msg;
+                t.style.opacity = 1;
+                setTimeout(() => t.style.opacity = 0, 2000);
+            }
+        }
+
+        function updateStats() {
+            const getEl = (id) => document.getElementById(id);
+            
+            let maxH = 0;
+            points.forEach(p => {
+                if (!p.broken) maxH = Math.max(maxH, groundY - p.y);
+            });
+            let elHeight = getEl('stat-height');
+            if (elHeight) elHeight.innerText = Math.round(maxH / CONFIG.scale) + " cm";
+
+            let nodeCount = points.filter(p=>!p.broken).length;
+            let elNodes = getEl('stat-nodes');
+            if (elNodes) elNodes.innerText = nodeCount;
+
+            let lenWood = 0, lenSteel = 0, lenCarbon = 0;
+            sticks.forEach(s => {
+                if (!s.broken && !s.p1.broken && !s.p2.broken) {
+                    let l = s.len / CONFIG.scale;
+                    if (s.mat.id === 'wood') lenWood += l;
+                    else if (s.mat.id === 'steel') lenSteel += l;
+                    else if (s.mat.id === 'carbon') lenCarbon += l;
+                }
+            });
+
+            let elLenWood = getEl('stat-len-wood');
+            if (elLenWood) elLenWood.innerText = Math.round(lenWood);
+            let elLenSteel = getEl('stat-len-steel');
+            if (elLenSteel) elLenSteel.innerText = Math.round(lenSteel);
+            let elLenCarbon = getEl('stat-len-carbon');
+            if (elLenCarbon) elLenCarbon.innerText = Math.round(lenCarbon);
+
+            let totalLength = lenWood + lenSteel + lenCarbon;
+            let elTotalLen = getEl('stat-total-length');
+            if (elTotalLen) elTotalLen.innerText = Math.round(totalLength);
+
+            let cost = nodeCount * CONFIG.nodeBaseCost + lenWood*2 + lenSteel*8 + lenCarbon*20;
+            let elCost = getEl('stat-cost');
+            if (elCost) elCost.innerText = Math.round(cost);
+        }
+
+        init();
+    })();
+</script>
+</body>
+</html>
