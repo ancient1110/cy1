@@ -168,9 +168,9 @@
         function getUniqueId() { return globalIdCounter++; }
 
         const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1,  angleStrength: 0.10, damping: 0.94, windFactor: 1.25, quakeResponse: 1.20, loadFactor: 1.15, stiffness: 0.78 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3,  angleStrength: 0.35, damping: 0.985, windFactor: 0.70, quakeResponse: 0.82, loadFactor: 0.86, stiffness: 1.10 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50, damping: 0.975, windFactor: 0.48, quakeResponse: 0.68, loadFactor: 0.74, stiffness: 1.32 }
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1,  angleStrength: 0.10, damping: 0.94, windFactor: 1.25, quakeResponse: 1.15, loadFactor: 1.15, stiffness: 0.78 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3,  angleStrength: 0.35, damping: 0.985, windFactor: 0.70, quakeResponse: 1.00, loadFactor: 0.86, stiffness: 1.10 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50, damping: 0.975, windFactor: 0.48, quakeResponse: 0.90, loadFactor: 0.74, stiffness: 1.32 }
         };
 
         const CONFIG = {
@@ -313,8 +313,11 @@
 
                 if (env.quake > 0) {
                     const quake = getQuakeOffsets();
-                    this.x += quake.x * 0.02 * (this.mat.quakeResponse || 1);
-                    this.y += quake.y * 0.01 * (this.mat.quakeResponse || 1);
+                    // 地震输入按质量缩放：同等地震加速度下，质量越大惯性力越大，轻材相对更抗震。
+                    const quakeMassFactor = 0.55 + this.mat.mass * 2.5;
+                    const quakeScale = (this.mat.quakeResponse || 1) * quakeMassFactor;
+                    this.x += quake.x * 0.02 * quakeScale;
+                    this.y += quake.y * 0.01 * quakeScale;
                 }
 
                 this.x += vx;
