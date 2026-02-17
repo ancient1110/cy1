@@ -181,7 +181,12 @@
             scale: 10,
             nodeBaseCost: 50,
             angleStiffness: 0.1,
-            angleIterations: 3
+            angleIterations: 3,
+            minPointMass: 0.05,
+            nodeMassFactor: 4,
+            loadForceScale: 0.22,
+            windForceScale: 1.6,
+            quakeForceScale: 0.8
         };
 
         // --- 碎片特效系统 ---
@@ -257,6 +262,33 @@
             };
         }
 
+        function getQuakeForce() {
+            if (!isSimulating || env.quake <= 0) return { x: 0, y: 0 };
+            const t = Date.now();
+            return {
+                x: Math.sin(t / 42) * env.quake * CONFIG.quakeForceScale,
+                y: Math.cos(t / 58) * env.quake * CONFIG.quakeForceScale * 0.45
+            };
+        }
+
+        function getPointMass(point) {
+            return Math.max(CONFIG.minPointMass, point.dynamicMass || (point.mat.mass * CONFIG.nodeMassFactor));
+        }
+
+        function refreshPointMasses() {
+            points.forEach(p => {
+                p.dynamicMass = Math.max(CONFIG.minPointMass, p.mat.mass * CONFIG.nodeMassFactor);
+            });
+
+            sticks.forEach(s => {
+                if (s.broken) return;
+                const stickMass = (s.len / CONFIG.scale) * s.mat.mass;
+                const halfMass = stickMass * 0.5;
+                s.p1.dynamicMass += halfMass;
+                s.p2.dynamicMass += halfMass;
+            });
+        }
+
         // --- Point 类 ---
         class Point {
             constructor(x, y, pinned, matId, uid = null) {
@@ -267,6 +299,7 @@
                 this.baseX = x;
                 this.broken = false; 
                 this.simId = uid !== null ? uid : getUniqueId(); // 唯一ID，用于跨模拟/编辑追踪
+                this.dynamicMass = Math.max(CONFIG.minPointMass, this.mat.mass * CONFIG.nodeMassFactor);
                 
                 // 复盘属性
                 this.wasBroken = false;
@@ -296,17 +329,21 @@
 
                 let vx = (this.x - this.oldx) * 0.98;
                 let vy = (this.y - this.oldy) * 0.98;
+                const invMass = 1 / getPointMass(this);
+                const quakeForce = getQuakeForce();
 
                 this.oldx = this.x;
                 this.oldy = this.y;
 
-                this.y += CONFIG.gravity * this.mat.mass;
+                this.y += CONFIG.gravity;
 
                 if (groundY - this.y > 100) {
-                    this.y += (env.load * 0.05);
+                    this.y += env.load * CONFIG.loadForceScale * invMass;
                 }
 
-                this.x += getWindForceAtY(this.y);
+                this.x += getWindForceAtY(this.y) * CONFIG.windForceScale * invMass;
+                this.x += quakeForce.x * invMass;
+                this.y += quakeForce.y * invMass;
 
                 this.x += vx;
                 this.y += vy;
@@ -361,13 +398,25 @@
                     }
                 }
 
-                let diff = this.len - dist;
-                let percent = diff / dist / 2;
-                let ox = dx * percent;
-                let oy = dy * percent;
+                const w1 = this.p1.pinned ? 0 : 1 / getPointMass(this.p1);
+                const w2 = this.p2.pinned ? 0 : 1 / getPointMass(this.p2);
+                const totalW = w1 + w2;
+                if (totalW <= 0) return;
 
-                if (!this.p1.pinned) { this.p1.x -= ox; this.p1.y -= oy; }
-                if (!this.p2.pinned) { this.p2.x += ox; this.p2.y += oy; }
+                const correctionRatio = (dist - this.len) / dist;
+                const corrX = dx * correctionRatio;
+                const corrY = dy * correctionRatio;
+
+                if (!this.p1.pinned) {
+                    const share = w1 / totalW;
+                    this.p1.x += corrX * share;
+                    this.p1.y += corrY * share;
+                }
+                if (!this.p2.pinned) {
+                    const share = w2 / totalW;
+                    this.p2.x -= corrX * share;
+                    this.p2.y -= corrY * share;
+                }
             }
 
             draw() {
@@ -698,6 +747,7 @@
                 let steps = Math.min(5, preheatRemaining);
                 for (let s = 0; s < steps; s++) {
                     for (let k = 0; k < iter; k++) {
+                        if (isSimulating) refreshPointMasses();
                         points.forEach(p => p.update());
                         sticks.forEach(s => s.update());
                         if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
@@ -706,6 +756,7 @@
                 }
             } else {
                 for (let k = 0; k < iter; k++) {
+                    if (isSimulating) refreshPointMasses();
                     points.forEach(p => p.update());
                     sticks.forEach(s => s.update());
                     if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
