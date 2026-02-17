@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v6.9 (抗性与形变修正+造价栏精简)</title>
+    <title>六年级科学：塔台工程 v7.1 (完美物理+断裂复盘) · 现代UI</title>
     <style>
+        /* === 界面样式保持不变 === */
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
         
         #canvas-container {
@@ -91,7 +92,6 @@
             font-size: 14px; font-weight: 600;
             pointer-events: none;
         }
-
     </style>
 </head>
 <body>
@@ -159,20 +159,22 @@
 
 <script>
     (function() {
-        // --- 全局变量定义 ---
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('canvas-container');
 
-        // --- 材料库 ---
+        // --- 全局计数器，用于追踪对象ID (核心：用于复盘) ---
+        let globalIdCounter = 0;
+        function getUniqueId() { return globalIdCounter++; }
+
         const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 3.5, nodeStrength: 4.5, mass: 0.14, angleStrength: 0.18 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 6.5, nodeStrength: 8,   mass: 0.16, angleStrength: 0.24 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 9.5, nodeStrength: 11,  mass: 0.08, angleStrength: 0.32 }
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1, angleStrength: 0.10 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3, angleStrength: 0.35 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50 }
         };
 
         const CONFIG = {
-            gravity: 0.5,
+            gravity: 2.0,      // 硬核重力
             groundHeight: 60,
             snapDist: 15,
             maxStickLen: 120,
@@ -182,32 +184,60 @@
             angleIterations: 3
         };
 
-        // --- 全局状态 ---
+        // --- 碎片特效系统 ---
+        class Fragment {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8 - 2;
+                this.life = 1.0;
+                this.color = color;
+                this.size = Math.random() * 3 + 2;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.5;
+                this.life -= 0.02;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        let fragments = [];
+        function createExplosion(x, y, color) {
+            for(let i=0; i<8; i++) {
+                fragments.push(new Fragment(x, y, color));
+            }
+        }
+
+        // --- 全局变量 ---
         let width, height, groundY;
         let points = [];
         let sticks = [];
         let isSimulating = false;
+        let statsLocked = false;
         let currentMat = 'wood';
-        let blueprint = null;                // 存储测试开始的完好状态
+        let blueprint = null;
         let env = { wind: 0, quake: 0, load: 0 };
         let mouse = { x: 0, y: 0 };
         let dragStart = null;
         let isDragging = false;
         let hoveredPoint = null;
-        let hoveredStick = null;              // 用于删除模式
+        let hoveredStick = null;
         let preheatRemaining = 0;
         let angleConstraints = [];
-
-        // 断裂顺序记录
-        let nextBreakOrder = 1;                // 下一个断裂序号
-        const MAX_BREAKS_TO_HIGHLIGHT = 3;      // 最多标注前三个
-
-        // 历史记录
         let historyStack = [];
         const MAX_HISTORY = 20;
-
-        // 删除模式
         let deleteMode = false;
+
+        // --- 断裂日志 (用于复原后高亮) ---
+        let breakLog = []; 
+        let nextBreakOrder = 1;
 
         function getWindForceAtY(y) {
             if (!isSimulating || env.wind <= 0) return 0;
@@ -227,47 +257,23 @@
             };
         }
 
-        // --- 点类 ---
+        // --- Point 类 ---
         class Point {
-            constructor(x, y, pinned, matId) {
+            constructor(x, y, pinned, matId, uid = null) {
                 this.x = x; this.y = y;
                 this.oldx = x; this.oldy = y;
                 this.pinned = pinned;
                 this.mat = MATERIALS[matId];
                 this.baseX = x;
-                this.broken = false;          // 当前是否折断（物理模拟用）
-                this.wasBroken = false;        // 历史是否折断过
-                this.breakOrder = 0;            // 断裂顺序，0表示未断裂
+                this.broken = false; 
+                this.simId = uid !== null ? uid : getUniqueId(); // 唯一ID，用于跨模拟/编辑追踪
+                
+                // 复盘属性
+                this.wasBroken = false;
+                this.breakOrder = 0;
             }
 
             update() {
-                if (this.broken) {
-                    let vx = (this.x - this.oldx) * 0.98;
-                    let vy = (this.y - this.oldy) * 0.98;
-
-                    this.oldx = this.x;
-                    this.oldy = this.y;
-
-                    this.y += CONFIG.gravity;
-
-                    const quake = getQuakeOffsets();
-                    if (this.y >= groundY - 2) {
-                        this.x += quake.x * 0.35;
-                        this.y += quake.y * 0.2;
-                    }
-
-                    this.x += getWindForceAtY(this.y);
-
-                    this.x += vx;
-                    this.y += vy;
-
-                    if (this.y > groundY) {
-                        this.y = groundY;
-                        this.oldy = this.y + vy * 0.5;
-                    }
-                    return;
-                }
-
                 if (!isSimulating) {
                     this.oldx = this.x;
                     this.oldy = this.y;
@@ -297,7 +303,7 @@
                 this.y += CONFIG.gravity * this.mat.mass;
 
                 if (groundY - this.y > 100) {
-                    this.y += (env.load * 0.08);
+                    this.y += (env.load * 0.05);
                 }
 
                 this.x += getWindForceAtY(this.y);
@@ -312,17 +318,20 @@
             }
         }
 
-        // --- 杆件类 ---
+        // --- Stick 类 ---
         class Stick {
-            constructor(p1, p2, matId) {
+            constructor(p1, p2, matId, uid = null) {
                 this.p1 = p1;
                 this.p2 = p2;
                 this.mat = MATERIALS[matId];
                 this.len = Math.hypot(p1.x - p2.x, p1.y - p2.y);
                 this.stress = 0;
-                this.broken = false;           // 当前是否折断
-                this.wasBroken = false;         // 历史是否折断过
-                this.breakOrder = 0;             // 断裂顺序
+                this.broken = false;
+                this.simId = uid !== null ? uid : getUniqueId();
+
+                // 复盘属性
+                this.wasBroken = false;
+                this.breakOrder = 0;
             }
 
             update() {
@@ -339,39 +348,18 @@
                 if (dist === 0) return;
 
                 this.stress = Math.abs(dist - this.len);
-                const stretchRatio = dist / Math.max(this.len, 0.001);
 
                 if (preheatRemaining <= 0) {
-                    // 限制杆件出现“拉面条”式超长形变：超过比例直接判定断裂
-                    if (stretchRatio > 1.16 && !this.broken) {
+                    // 杆件强度断裂
+                    if (this.stress > this.mat.strength) {
                         this.broken = true;
-                        this.wasBroken = true;
-                        this.breakOrder = nextBreakOrder++;
                     }
-
-                    // 杆件自身强度断裂
-                    if (this.stress > this.mat.strength && !this.broken) {
-                        this.broken = true;
-                        this.wasBroken = true;
-                        this.breakOrder = nextBreakOrder++;
-                    }
-
-                    // 节点强度断裂（拉力破坏）
+                    // 节点强度断裂 (拉力破坏) - 标记节点为broken，在loop中统一处理
                     if (this.stress > Math.min(this.p1.mat.nodeStrength, this.p2.mat.nodeStrength)) {
-                        if (this.p1.mat.nodeStrength < this.stress && !this.p1.pinned && !this.p1.broken) {
-                            this.p1.broken = true;
-                            this.p1.wasBroken = true;
-                            this.p1.breakOrder = nextBreakOrder++;
-                        }
-                        if (this.p2.mat.nodeStrength < this.stress && !this.p2.pinned && !this.p2.broken) {
-                            this.p2.broken = true;
-                            this.p2.wasBroken = true;
-                            this.p2.breakOrder = nextBreakOrder++;
-                        }
+                        if (this.p1.mat.nodeStrength < this.stress && !this.p1.pinned) this.p1.broken = true;
+                        if (this.p2.mat.nodeStrength < this.stress && !this.p2.pinned) this.p2.broken = true;
                     }
                 }
-
-                if (this.broken) return;
 
                 let diff = this.len - dist;
                 let percent = diff / dist / 2;
@@ -383,44 +371,28 @@
             }
 
             draw() {
-                // 停止测试后，如果曾经断裂且断裂顺序 <= MAX_BREAKS_TO_HIGHLIGHT，用醒目红色标注
-                if (!isSimulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= MAX_BREAKS_TO_HIGHLIGHT) {
-                    // 红色粗外轮廓 + 原色内线
-                    ctx.beginPath();
-                    ctx.moveTo(this.p1.x, this.p1.y);
-                    ctx.lineTo(this.p2.x, this.p2.y);
-                    ctx.strokeStyle = '#ff0000';
-                    ctx.lineWidth = 8;
-                    ctx.setLineDash([]);
-                    ctx.stroke();
+                if (isSimulating && this.broken) return; // 模拟中断裂不绘制
 
-                    ctx.beginPath();
-                    ctx.moveTo(this.p1.x, this.p1.y);
-                    ctx.lineTo(this.p2.x, this.p2.y);
-                    ctx.strokeStyle = this.mat.color;
-                    ctx.lineWidth = 4;
-                    ctx.stroke();
-                    return;
-                }
-
-                // 模拟中或未断裂的正常绘制
-                if (this.broken) {
-                    // 模拟中断裂的构件只用原色绘制
-                    ctx.beginPath();
-                    ctx.moveTo(this.p1.x, this.p1.y);
-                    ctx.lineTo(this.p2.x, this.p2.y);
-                    ctx.strokeStyle = this.mat.color;
-                    ctx.lineWidth = 4;
-                    ctx.setLineDash([]);
-                    ctx.stroke();
-                    return;
-                }
-
-                // 正常杆件
                 ctx.beginPath();
-                let color = this.mat.color;
-                let width = 4;
+                
+                // 复盘模式：如果是最先断的3个，高亮显示
+                if (!isSimulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= 3) {
+                    ctx.strokeStyle = '#e74c3c'; // 红
+                    ctx.lineWidth = 6;
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.stroke();
+                    // 覆盖一层原色
+                    ctx.strokeStyle = this.mat.color;
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.stroke();
+                    return;
+                }
 
+                // 正常绘制
+                let color = this.mat.color;
                 if (isSimulating) {
                     let ratio = Math.min(this.stress / (this.mat.strength * 0.8), 1);
                     if (ratio > 0.5) {
@@ -432,7 +404,7 @@
                     ctx.strokeStyle = color;
                 }
 
-                ctx.lineWidth = width;
+                ctx.lineWidth = 4;
                 ctx.lineCap = 'round';
                 ctx.moveTo(this.p1.x, this.p1.y);
                 ctx.lineTo(this.p2.x, this.p2.y);
@@ -440,13 +412,12 @@
             }
         }
 
-        // --- 初始化 ---
         function init() {
             resize();
             window.addEventListener('resize', resize);
             addPoint(width/2 - 60, groundY, true, 'wood');
             addPoint(width/2 + 60, groundY, true, 'wood');
-            saveHistory(); // 初始状态保存
+            saveHistory();
             loop();
         }
 
@@ -459,28 +430,21 @@
             points.forEach(p => { if(p.pinned) p.y = groundY; });
         }
 
-        function addPoint(x, y, pinned, matId) {
-            let p = new Point(x, y, pinned, matId);
+        function addPoint(x, y, pinned, matId, uid = null) {
+            let p = new Point(x, y, pinned, matId, uid);
             points.push(p);
             return p;
         }
 
-        // --- 历史记录 ---
         function saveHistory() {
             let snapshot = {
                 points: points.map(p => ({
-                    x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id,
-                    broken: p.broken, wasBroken: p.wasBroken, breakOrder: p.breakOrder
+                    x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id, uid: p.simId
                 })),
                 sticks: sticks.map(s => {
                     let p1Idx = points.indexOf(s.p1);
                     let p2Idx = points.indexOf(s.p2);
-                    return {
-                        p1Idx, p2Idx,
-                        matId: s.mat.id,
-                        broken: s.broken, wasBroken: s.wasBroken, breakOrder: s.breakOrder,
-                        len: s.len
-                    };
+                    return { p1Idx, p2Idx, matId: s.mat.id, uid: s.simId };
                 })
             };
             historyStack.push(snapshot);
@@ -488,22 +452,11 @@
         }
 
         function restoreFromHistory(snapshot) {
-            points = snapshot.points.map(p => {
-                let pt = new Point(p.x, p.y, p.pinned, p.matId);
-                pt.broken = p.broken;
-                pt.wasBroken = p.wasBroken;
-                pt.breakOrder = p.breakOrder;
-                return pt;
-            });
+            points = snapshot.points.map(p => new Point(p.x, p.y, p.pinned, p.matId, p.uid));
             sticks = snapshot.sticks.map(s => {
                 let p1 = points[s.p1Idx];
                 let p2 = points[s.p2Idx];
-                let st = new Stick(p1, p2, s.matId);
-                st.broken = s.broken;
-                st.wasBroken = s.wasBroken;
-                st.breakOrder = s.breakOrder;
-                st.len = s.len || Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                return st;
+                return new Stick(p1, p2, s.matId, s.uid);
             });
             angleConstraints = [];
         }
@@ -517,7 +470,6 @@
             showToast("撤销成功");
         }
 
-        // --- 删除模式 ---
         function toggleDeleteMode() {
             if (isSimulating) { showToast("测试中不能删除"); return; }
             deleteMode = !deleteMode;
@@ -537,43 +489,32 @@
             if (idx !== -1) sticks.splice(idx, 1);
         }
 
-        // --- 自动连接交叉点 (稳健版) ---
+        // --- 自动连接与角度约束 ---
         function autoConnectIntersections() {
             if (isSimulating) { showToast("测试中不能使用此功能"); return; }
             if (sticks.length < 2) { showToast("至少需要两根杆件"); return; }
+            saveHistory();
 
-            saveHistory(); // 记录操作前状态
-
-            const EPS = 1e-4;
-            const ENDPOINT_GUARD = 0.02;
-            const MERGE_TOL = Math.max(2, CONFIG.snapDist * 0.25);
-
-            const clusters = [];
-            const splitMap = new Map(); // stick -> [{ t, point }]
+            const EPS = 1e-4; const ENDPOINT_GUARD = 0.02; const MERGE_TOL = Math.max(2, CONFIG.snapDist * 0.25);
+            const clusters = []; const splitMap = new Map();
 
             function pointLineDistance(px, py, ax, ay, bx, by) {
-                const vx = bx - ax;
-                const vy = by - ay;
+                const vx = bx - ax; const vy = by - ay;
                 const len2 = vx * vx + vy * vy;
                 if (len2 < EPS) return Math.hypot(px - ax, py - ay);
                 const t = ((px - ax) * vx + (py - ay) * vy) / len2;
                 const clamped = Math.max(0, Math.min(1, t));
-                const cx = ax + clamped * vx;
-                const cy = ay + clamped * vy;
-                return Math.hypot(px - cx, py - cy);
+                return Math.hypot(px - (ax + clamped * vx), py - (ay + clamped * vy));
             }
 
             function findNearbyNode(ix, iy, s1, s2) {
-                let nearest = null;
-                let bestDist = CONFIG.snapDist;
+                let nearest = null, bestDist = CONFIG.snapDist;
                 for (let p of points) {
                     const d = Math.hypot(p.x - ix, p.y - iy);
                     if (d >= bestDist) continue;
-                    const dToS1 = pointLineDistance(p.x, p.y, s1.p1.x, s1.p1.y, s1.p2.x, s1.p2.y);
-                    const dToS2 = pointLineDistance(p.x, p.y, s2.p1.x, s2.p1.y, s2.p2.x, s2.p2.y);
-                    if (dToS1 > MERGE_TOL || dToS2 > MERGE_TOL) continue;
-                    nearest = p;
-                    bestDist = d;
+                    if (pointLineDistance(p.x, p.y, s1.p1.x, s1.p1.y, s1.p2.x, s1.p2.y) > MERGE_TOL) continue;
+                    if (pointLineDistance(p.x, p.y, s2.p1.x, s2.p1.y, s2.p2.x, s2.p2.y) > MERGE_TOL) continue;
+                    nearest = p; bestDist = d;
                 }
                 return nearest;
             }
@@ -582,19 +523,11 @@
                 for (let c of clusters) {
                     if (Math.hypot(c.x - x, c.y - y) <= MERGE_TOL) {
                         if (!c.existingNode && existingNode) c.existingNode = existingNode;
-                        if (c.existingNode) {
-                            c.x = c.existingNode.x;
-                            c.y = c.existingNode.y;
-                        }
+                        if (c.existingNode) { c.x = c.existingNode.x; c.y = c.existingNode.y; }
                         return c;
                     }
                 }
-                const cluster = {
-                    x: existingNode ? existingNode.x : x,
-                    y: existingNode ? existingNode.y : y,
-                    existingNode,
-                    node: null
-                };
+                const cluster = { x: existingNode ? existingNode.x : x, y: existingNode ? existingNode.y : y, existingNode, node: null };
                 clusters.push(cluster);
                 return cluster;
             }
@@ -605,45 +538,32 @@
                 splitMap.get(stick).push({ t, cluster });
             }
 
-            // 1) 检测所有交点并注册到对应杆件
             for (let i = 0; i < sticks.length; i++) {
                 for (let j = i + 1; j < sticks.length; j++) {
-                    const s1 = sticks[i];
-                    const s2 = sticks[j];
+                    const s1 = sticks[i], s2 = sticks[j];
                     if (s1.p1 === s2.p1 || s1.p1 === s2.p2 || s1.p2 === s2.p1 || s1.p2 === s2.p2) continue;
-
-                    const p1 = s1.p1, p2 = s1.p2, p3 = s2.p1, p4 = s2.p2;
-                    const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+                    const denom = (s2.p2.y - s2.p1.y) * (s1.p2.x - s1.p1.x) - (s2.p2.x - s2.p1.x) * (s1.p2.y - s1.p1.y);
                     if (Math.abs(denom) < EPS) continue;
-
-                    const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
-                    const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
-
+                    const ua = ((s2.p2.x - s2.p1.x) * (s1.p1.y - s2.p1.y) - (s2.p2.y - s2.p1.y) * (s1.p1.x - s2.p1.x)) / denom;
+                    const ub = ((s1.p2.x - s1.p1.x) * (s1.p1.y - s2.p1.y) - (s1.p2.y - s1.p1.y) * (s1.p1.x - s2.p1.x)) / denom;
                     if (ua <= ENDPOINT_GUARD || ua >= 1 - ENDPOINT_GUARD || ub <= ENDPOINT_GUARD || ub >= 1 - ENDPOINT_GUARD) continue;
-
-                    const ix = p1.x + ua * (p2.x - p1.x);
-                    const iy = p1.y + ua * (p2.y - p1.y);
+                    const ix = s1.p1.x + ua * (s1.p2.x - s1.p1.x);
+                    const iy = s1.p1.y + ua * (s1.p2.y - s1.p1.y);
                     const nearbyNode = findNearbyNode(ix, iy, s1, s2);
                     const cluster = findOrCreateCluster(ix, iy, nearbyNode);
-
                     registerSplit(s1, ua, cluster);
                     registerSplit(s2, ub, cluster);
                 }
             }
 
-            let newNodesCount = 0;
-            let processedSticks = 0;
-
-            // 2) 为每个交点准备实际节点
+            let newNodesCount = 0, processedSticks = 0;
             for (let cluster of clusters) {
                 cluster.node = cluster.existingNode || addPoint(cluster.x, cluster.y, false, currentMat);
                 if (!cluster.existingNode) newNodesCount++;
             }
 
-            // 3) 对每根杆件按 t 值多段拆分（支持一根杆件多个交点）
             for (let [stick, splits] of splitMap.entries()) {
                 if (!splits.length) continue;
-
                 const deduped = [];
                 splits.sort((a, b) => a.t - b.t);
                 for (let s of splits) {
@@ -652,57 +572,37 @@
                     deduped.push(s);
                 }
                 if (!deduped.length) continue;
-
                 const idx = sticks.indexOf(stick);
                 if (idx === -1) continue;
                 sticks.splice(idx, 1);
-
                 let chain = [stick.p1, ...deduped.map(s => s.cluster.node), stick.p2];
                 for (let i = 0; i < chain.length - 1; i++) {
-                    const a = chain[i];
-                    const b = chain[i + 1];
-                    if (a === b) continue;
-                    if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
+                    const a = chain[i], b = chain[i + 1];
+                    if (a === b || Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
                     sticks.push(new Stick(a, b, stick.mat.id));
                 }
                 processedSticks++;
             }
 
-            if (newNodesCount > 0 || processedSticks > 0) {
-                showToast(`已处理 ${processedSticks} 根杆件，新增 ${newNodesCount} 个节点`);
-            } else {
-                showToast("未发现需要连接的交叉点");
-            }
+            if (newNodesCount > 0 || processedSticks > 0) showToast(`连接完成：${processedSticks} 杆件，${newNodesCount} 节点`);
+            else showToast("未发现交叉点");
         }
 
-        // --- 角度约束构建 ---
         function buildAngleConstraints() {
             angleConstraints = [];
             for (let node of points) {
-                if (node.broken) continue;
                 let neighbors = [];
                 for (let s of sticks) {
-                    if (s.broken) continue;
                     let other = null;
                     if (s.p1 === node) other = s.p2;
                     else if (s.p2 === node) other = s.p1;
-                    if (!other || other.broken) continue;
-
-                    let dx = other.x - node.x;
-                    let dy = other.y - node.y;
+                    if (!other) continue;
+                    let dx = other.x - node.x, dy = other.y - node.y;
                     let len = Math.hypot(dx, dy);
                     if (len < 0.01) continue;
-                    let dirX = dx / len;
-                    let dirY = dy / len;
-                    neighbors.push({
-                        point: other,
-                        initDirX: dirX,
-                        initDirY: dirY
-                    });
+                    neighbors.push({ point: other, initDirX: dx/len, initDirY: dy/len });
                 }
-                if (neighbors.length >= 2) {
-                    angleConstraints.push({ node, neighbors });
-                }
+                if (neighbors.length >= 2) angleConstraints.push({ node, neighbors });
             }
         }
 
@@ -716,40 +616,19 @@
                         let p = nb.point;
                         if (p.broken) continue;
                         if (node.pinned && p.pinned) continue;
-
-                        let dx = p.x - node.x;
-                        let dy = p.y - node.y;
+                        let dx = p.x - node.x, dy = p.y - node.y;
                         let dist = Math.hypot(dx, dy);
                         if (dist < 0.01) continue;
-
-                        let tx = nb.initDirX;
-                        let ty = nb.initDirY;
-
-                        let targetX = node.x + tx * dist;
-                        let targetY = node.y + ty * dist;
-
+                        let targetX = node.x + nb.initDirX * dist;
+                        let targetY = node.y + nb.initDirY * dist;
                         let moveX = (targetX - p.x) * stiffness;
                         let moveY = (targetY - p.y) * stiffness;
-
                         if (!node.pinned && !p.pinned) {
-                            p.x += moveX;
-                            p.y += moveY;
-                            node.x -= moveX;
-                            node.y -= moveY;
-                            p.oldx = p.x;
-                            p.oldy = p.y;
-                            node.oldx = node.x;
-                            node.oldy = node.y;
+                            p.x += moveX; p.y += moveY; node.x -= moveX; node.y -= moveY;
                         } else if (!p.pinned) {
-                            p.x += moveX;
-                            p.y += moveY;
-                            p.oldx = p.x;
-                            p.oldy = p.y;
+                            p.x += moveX; p.y += moveY;
                         } else if (!node.pinned) {
-                            node.x -= moveX;
-                            node.y -= moveY;
-                            node.oldx = node.x;
-                            node.oldy = node.y;
+                            node.x -= moveX; node.y -= moveY;
                         }
                     }
                 }
@@ -757,50 +636,61 @@
         }
 
         function checkAngleBreaks() {
-            let newBroken = false;
             for (let c of angleConstraints) {
                 let node = c.node;
                 if (node.broken) continue;
                 let maxAngleDiff = 0;
                 let neighbors = c.neighbors;
-                for (let i = 0; i < neighbors.length; i++) {
-                    for (let j = i+1; j < neighbors.length; j++) {
-                        let a = neighbors[i];
-                        let b = neighbors[j];
-                        let ax = a.point.x - node.x;
-                        let ay = a.point.y - node.y;
-                        let bx = b.point.x - node.x;
-                        let by = b.point.y - node.y;
-                        let lenA = Math.hypot(ax, ay);
-                        let lenB = Math.hypot(bx, by);
-                        if (lenA < 0.01 || lenB < 0.01) continue;
-                        let dot = ax*bx + ay*by;
-                        let cross = ax*by - ay*bx;
-                        let curAngle = Math.atan2(cross, dot);
-
-                        let initDot = a.initDirX*b.initDirX + a.initDirY*b.initDirY;
-                        let initCross = a.initDirX*b.initDirY - a.initDirY*b.initDirX;
-                        let initAngle = Math.atan2(initCross, initDot);
-
+                let activeNeighbors = neighbors.filter(n => !n.point.broken && sticks.some(s => (s.p1===node && s.p2===n.point) || (s.p1===n.point && s.p2===node)));
+                
+                for (let i = 0; i < activeNeighbors.length; i++) {
+                    for (let j = i+1; j < activeNeighbors.length; j++) {
+                        let a = activeNeighbors[i], b = activeNeighbors[j];
+                        let ax = a.point.x - node.x, ay = a.point.y - node.y;
+                        let bx = b.point.x - node.x, by = b.point.y - node.y;
+                        let curAngle = Math.atan2(ax*by - ay*bx, ax*bx + ay*by);
+                        let initAngle = Math.atan2(a.initDirX*b.initDirY - a.initDirY*b.initDirX, a.initDirX*b.initDirX + a.initDirY*b.initDirY);
                         let diff = Math.abs(curAngle - initAngle);
                         if (diff > Math.PI) diff = 2*Math.PI - diff;
                         if (diff > maxAngleDiff) maxAngleDiff = diff;
                     }
                 }
-                if (maxAngleDiff > node.mat.angleStrength && !node.broken) {
-                    node.broken = true;
-                    node.wasBroken = true;
-                    node.breakOrder = nextBreakOrder++;
-                    node.pinned = false;
-                    newBroken = true;
+                if (maxAngleDiff > node.mat.angleStrength) {
+                    node.broken = true; 
                 }
-            }
-            if (newBroken) {
-                angleConstraints = angleConstraints.filter(c => !c.node.broken);
             }
         }
 
-        // --- 主循环 ---
+        function getTopCluster() {
+            const active = points.filter(p => !p.broken);
+            if (!active.length) return null;
+            const topY = active.reduce((m, p) => Math.min(m, p.y), active[0].y);
+            const band = active.filter(p => p.y <= topY + 30);
+            if (!band.length) return null;
+            const centerX = band.reduce((sum, p) => sum + p.x, 0) / band.length;
+            return { topY, centerX };
+        }
+
+        function drawLoadVisual() {
+            if (!isSimulating || env.load <= 0) return;
+            const top = getTopCluster();
+            if (!top) return;
+            const plateW = Math.max(120, Math.min(280, 110 + env.load * 1.4));
+            const plateH = 16;
+            const plateX = top.centerX - plateW / 2;
+            const plateY = Math.max(30, top.topY - 26);
+            const blockW = Math.max(90, plateW * 0.65);
+            const blockH = 24 + env.load * 0.7;
+            const blockX = top.centerX - blockW / 2;
+            const blockY = plateY - blockH - 18;
+
+            ctx.fillStyle = 'rgba(52, 73, 94, 0.95)'; ctx.fillRect(blockX, blockY, blockW, blockH);
+            ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'center';
+            ctx.fillText(`${env.load}kg`, top.centerX, blockY + blockH / 2 + 5);
+            ctx.strokeStyle = 'rgba(60, 60, 60, 0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(top.centerX, blockY + blockH); ctx.lineTo(top.centerX, plateY); ctx.stroke();
+            ctx.fillStyle = 'rgba(127, 140, 141, 0.95)'; ctx.fillRect(plateX, plateY, plateW, plateH); ctx.strokeRect(plateX, plateY, plateW, plateH);
+        }
+
         function loop() {
             let iter = isSimulating ? 5 : 1;
 
@@ -810,9 +700,7 @@
                     for (let k = 0; k < iter; k++) {
                         points.forEach(p => p.update());
                         sticks.forEach(s => s.update());
-                        if (isSimulating && angleConstraints.length > 0) {
-                            applyAngleConstraints(1);
-                        }
+                        if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
                     }
                     preheatRemaining--;
                 }
@@ -820,15 +708,78 @@
                 for (let k = 0; k < iter; k++) {
                     points.forEach(p => p.update());
                     sticks.forEach(s => s.update());
-                    if (isSimulating && angleConstraints.length > 0) {
-                        applyAngleConstraints(1);
-                    }
+                    if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
                 }
                 if (isSimulating && angleConstraints.length > 0) {
                     applyAngleConstraints(CONFIG.angleIterations);
                     checkAngleBreaks();
                 }
             }
+
+            // === 物理引擎核心修改：断裂清理与自由落体 ===
+            if (isSimulating) {
+                let somethingBroke = false;
+
+                // 1. 记录并生成杆件断裂特效
+                sticks.forEach(s => {
+                    if (s.broken) {
+                        // 仅记录因应力断裂的，不记录被动删除的
+                        if(!breakLog.find(l => l.type === 'stick' && l.simId === s.simId)) {
+                             breakLog.push({ type: 'stick', simId: s.simId, order: nextBreakOrder++ });
+                             createExplosion((s.p1.x + s.p2.x)/2, (s.p1.y + s.p2.y)/2, s.mat.color);
+                             somethingBroke = true;
+                        }
+                    }
+                });
+
+                // 2. 记录并生成节点断裂特效
+                points.forEach(p => {
+                    if (p.broken) {
+                        if(!breakLog.find(l => l.type === 'point' && l.simId === p.simId)) {
+                            breakLog.push({ type: 'point', simId: p.simId, order: nextBreakOrder++ });
+                            createExplosion(p.x, p.y, p.mat.color);
+                            somethingBroke = true;
+                        }
+                    }
+                });
+
+                // 3. 执行删除（过滤列表）
+                // 先过滤掉已经明确断掉的杆
+                let activeSticks = sticks.filter(s => !s.broken);
+                
+                // 再过滤掉已经明确断掉的点
+                let activePoints = points.filter(p => !p.broken);
+
+                // 4. 核心逻辑：孤立节点检测（两侧杆都断裂的情况）
+                // 遍历所有存活的节点，检查它还有多少根杆连着
+                let pointsToDelete = [];
+                activePoints.forEach(p => {
+                    if (p.pinned) return; // 地基永远不删
+                    let connectedCount = activeSticks.filter(s => s.p1 === p || s.p2 === p).length;
+                    if (connectedCount === 0) {
+                        pointsToDelete.push(p);
+                        createExplosion(p.x, p.y, p.mat.color);
+                        // 这种情况属于被动清理，通常不算作结构性破坏的"First Break"，但为了视觉连贯，也可以不记录进Log，或者记录
+                        // 这里选择不记录进 breakLog (因为它不是受力破坏，而是变成了垃圾)，防止抢占“前三个断裂”的名额
+                    }
+                });
+
+                // 从activePoints中移除孤立节点
+                if (pointsToDelete.length > 0) {
+                    activePoints = activePoints.filter(p => !pointsToDelete.includes(p));
+                }
+
+                // 5. 反向清理：如果有节点被删除了（无论是受力断裂还是孤立删除），连在它上面的杆也必须删
+                activeSticks = activeSticks.filter(s => activePoints.includes(s.p1) && activePoints.includes(s.p2));
+
+                // 6. 更新全局列表
+                points = activePoints;
+                sticks = activeSticks;
+            }
+
+            // 更新碎片
+            fragments.forEach(f => f.update());
+            fragments = fragments.filter(f => f.life > 0);
 
             ctx.clearRect(0, 0, width, height);
             drawGrid();
@@ -838,27 +789,18 @@
 
             drawLoadVisual();
             sticks.forEach(s => s.draw());
-
+            
             points.forEach(p => {
-                if (!isSimulating && p.wasBroken && p.breakOrder > 0 && p.breakOrder <= MAX_BREAKS_TO_HIGHLIGHT) {
+                if (isSimulating && p.broken) return;
+
+                // 复盘高亮绘制
+                if (!isSimulating && p.wasBroken && p.breakOrder > 0 && p.breakOrder <= 3) {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
-                    ctx.strokeStyle = '#ff0000';
-                    ctx.lineWidth = 3;
-                    ctx.stroke();
-
+                    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-                    ctx.fillStyle = p.mat.color;
-                    ctx.fill();
-                    return;
-                }
-
-                if (p.broken) {
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-                    ctx.fillStyle = p.mat.color;
-                    ctx.fill();
+                    ctx.fillStyle = p.mat.color; ctx.fill();
                     return;
                 }
 
@@ -866,35 +808,27 @@
                 ctx.arc(p.x, p.y, p.pinned ? 8 : 5, 0, Math.PI*2);
                 ctx.fillStyle = p.pinned ? "#34495e" : p.mat.color;
                 ctx.fill();
-                ctx.strokeStyle = "rgba(255,255,255,0.5)";
-                ctx.lineWidth = 1;
-                ctx.stroke();
+                ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1; ctx.stroke();
             });
+
+            fragments.forEach(f => f.draw(ctx));
 
             if (deleteMode && !isSimulating) {
                 hoveredStick = null;
                 let stickDist = 10;
                 for (let s of sticks) {
                     let d = distanceToSegment(mouse, s.p1, s.p2);
-                    if (d < stickDist) {
-                        stickDist = d;
-                        hoveredStick = s;
-                    }
+                    if (d < stickDist) { stickDist = d; hoveredStick = s; }
                 }
                 if (hoveredStick) {
                     ctx.beginPath();
                     ctx.moveTo(hoveredStick.p1.x, hoveredStick.p1.y);
                     ctx.lineTo(hoveredStick.p2.x, hoveredStick.p2.y);
-                    ctx.strokeStyle = '#e67e22';
-                    ctx.lineWidth = 8;
-                    ctx.setLineDash([5,5]);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
+                    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 8; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
                 }
             }
 
             if (!isSimulating) drawInteraction();
-
             updateStats();
             requestAnimationFrame(loop);
         }
@@ -906,70 +840,7 @@
             if (ab2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
             let t = (apx*abx + apy*aby) / ab2;
             t = Math.max(0, Math.min(1, t));
-            let projx = a.x + abx * t;
-            let projy = a.y + aby * t;
-            return Math.hypot(p.x - projx, p.y - projy);
-        }
-
-        function getTopCluster() {
-            const active = points.filter(p => !p.broken);
-            if (!active.length) return null;
-            const topY = active.reduce((m, p) => Math.min(m, p.y), active[0].y);
-            const band = active.filter(p => p.y <= topY + 30);
-            if (!band.length) return null;
-            const centerX = band.reduce((sum, p) => sum + p.x, 0) / band.length;
-            return { topY, centerX, count: band.length };
-        }
-
-        function drawLoadVisual() {
-            if (!isSimulating || env.load <= 0) return;
-            const top = getTopCluster();
-            if (!top) return;
-
-            const plateW = Math.max(120, Math.min(280, 110 + env.load * 1.4));
-            const plateH = 16;
-            const plateX = top.centerX - plateW / 2;
-            const plateY = Math.max(30, top.topY - 26);
-
-            const blockW = Math.max(90, plateW * 0.65);
-            const blockH = 24 + env.load * 0.7;
-            const blockX = top.centerX - blockW / 2;
-            const blockY = plateY - blockH - 18;
-
-            ctx.fillStyle = 'rgba(52, 73, 94, 0.95)';
-            ctx.fillRect(blockX, blockY, blockW, blockH);
-            ctx.strokeStyle = '#1f2d3a';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(blockX, blockY, blockW, blockH);
-
-            ctx.fillStyle = '#ecf0f1';
-            ctx.font = 'bold 14px Segoe UI';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${env.load}kg`, top.centerX, blockY + blockH / 2 + 5);
-
-            ctx.strokeStyle = 'rgba(60, 60, 60, 0.9)';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(top.centerX, blockY + blockH);
-            ctx.lineTo(top.centerX, plateY);
-            ctx.stroke();
-
-            ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
-            for (let i = -2; i <= 2; i++) {
-                const x = top.centerX + i * (plateW / 6);
-                ctx.beginPath();
-                ctx.moveTo(x, plateY - 6);
-                ctx.lineTo(x - 6, plateY - 16 - env.load * 0.08);
-                ctx.lineTo(x + 6, plateY - 16 - env.load * 0.08);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            ctx.fillStyle = 'rgba(127, 140, 141, 0.95)';
-            ctx.fillRect(plateX, plateY, plateW, plateH);
-            ctx.strokeStyle = '#5d6d6d';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(plateX, plateY, plateW, plateH);
+            return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t));
         }
 
         function drawGrid() {
@@ -983,7 +854,6 @@
             hoveredPoint = null;
             let minDist = CONFIG.snapDist;
             for (let p of points) {
-                if (p.broken) continue;
                 let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
                 if (d < minDist) { minDist = d; hoveredPoint = p; }
             }
@@ -992,8 +862,7 @@
                 canvas.style.cursor = "cell";
                 if (hoveredPoint) {
                     ctx.beginPath(); ctx.arc(hoveredPoint.x, hoveredPoint.y, 12, 0, Math.PI*2);
-                    ctx.strokeStyle = "#e74c3c";
-                    ctx.lineWidth = 3; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.strokeStyle = "#e74c3c"; ctx.lineWidth = 3; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
                 }
             } else {
                 if (hoveredPoint) {
@@ -1011,89 +880,55 @@
             if (isDragging && dragStart && !deleteMode) {
                 let targetX = hoveredPoint ? hoveredPoint.x : mouse.x;
                 let targetY = hoveredPoint ? hoveredPoint.y : mouse.y;
-
-                let dx = targetX - dragStart.x;
-                let dy = targetY - dragStart.y;
+                let dx = targetX - dragStart.x, dy = targetY - dragStart.y;
                 let dist = Math.hypot(dx, dy);
                 let segments = Math.ceil(dist / CONFIG.maxStickLen);
 
-                ctx.beginPath();
-                ctx.moveTo(dragStart.x, dragStart.y);
-                ctx.lineTo(targetX, targetY);
-                ctx.strokeStyle = MATERIALS[currentMat].color;
-                ctx.lineWidth = 3;
-                ctx.setLineDash([5, 5]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
+                ctx.beginPath(); ctx.moveTo(dragStart.x, dragStart.y); ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = MATERIALS[currentMat].color; ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
                 if (segments > 1) {
-                    ctx.fillStyle = "#e67e22";
-                    ctx.font = "12px Arial";
+                    ctx.fillStyle = "#e67e22"; ctx.font = "12px Arial";
                     ctx.fillText(`${segments}段连接`, mouse.x + 10, mouse.y);
                 }
             }
         }
 
-        // --- 鼠标事件 ---
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
-            mouse.x = e.clientX - rect.left;
-            mouse.y = e.clientY - rect.top;
+            mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
         });
 
         canvas.addEventListener('mousedown', e => {
             if (isSimulating) { showToast("⚠️ 测试中无法修改，请先停止！"); return; }
             if (e.button === 2) return;
-
             if (deleteMode) {
-                if (hoveredPoint) {
-                    saveHistory();
-                    deletePoint(hoveredPoint);
-                    showToast("删除节点");
-                } else if (hoveredStick) {
-                    saveHistory();
-                    deleteStick(hoveredStick);
-                    showToast("删除杆件");
-                }
+                if (hoveredPoint) { saveHistory(); deletePoint(hoveredPoint); showToast("删除节点"); }
+                else if (hoveredStick) { saveHistory(); deleteStick(hoveredStick); showToast("删除杆件"); }
                 return;
             }
-
-            if (hoveredPoint) {
-                dragStart = hoveredPoint;
-                isDragging = true;
-            } else if (mouse.y > groundY - 15) {
-                let p = addPoint(mouse.x, groundY, true, currentMat);
-                dragStart = p;
-                isDragging = true;
-            }
+            if (hoveredPoint) { dragStart = hoveredPoint; isDragging = true; }
+            else if (mouse.y > groundY - 15) { let p = addPoint(mouse.x, groundY, true, currentMat); dragStart = p; isDragging = true; }
         });
 
         canvas.addEventListener('mouseup', e => {
             if (isSimulating || deleteMode) return;
             if (!isDragging || !dragStart) return;
-
             let endP = hoveredPoint;
             let finalX = endP ? endP.x : mouse.x;
             let finalY = endP ? endP.y : mouse.y;
             if (!endP && finalY > groundY) finalY = groundY;
-
-            let dx = finalX - dragStart.x;
-            let dy = finalY - dragStart.y;
+            let dx = finalX - dragStart.x, dy = finalY - dragStart.y;
             let dist = Math.hypot(dx, dy);
 
             if (dist > 5) {
                 saveHistory();
-
                 let segments = Math.ceil(dist / CONFIG.maxStickLen);
                 let currentStart = dragStart;
-
                 for (let i = 1; i <= segments; i++) {
                     let isLast = (i === segments);
                     let nextP;
-
-                    if (isLast && endP) {
-                        nextP = endP;
-                    } else {
+                    if (isLast && endP) { nextP = endP; }
+                    else {
                         let ratio = i / segments;
                         let nx = dragStart.x + dx * ratio;
                         let ny = dragStart.y + dy * ratio;
@@ -1101,7 +936,6 @@
                         if (pin) ny = groundY;
                         nextP = addPoint(nx, ny, pin, currentMat);
                     }
-
                     if (currentStart !== nextP) {
                         let exists = sticks.some(s => (s.p1 === currentStart && s.p2 === nextP) || (s.p1 === nextP && s.p2 === currentStart));
                         if (!exists) sticks.push(new Stick(currentStart, nextP, currentMat));
@@ -1109,66 +943,43 @@
                     currentStart = nextP;
                 }
             }
-            isDragging = false;
-            dragStart = null;
+            isDragging = false; dragStart = null;
         });
 
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
             if (isSimulating) return;
-            if (!deleteMode && hoveredPoint) {
-                saveHistory();
-                deletePoint(hoveredPoint);
-                showToast("删除节点");
-            }
+            if (!deleteMode && hoveredPoint) { saveHistory(); deletePoint(hoveredPoint); showToast("删除节点"); }
         });
 
-        // --- 蓝图存储 ---
         function saveBlueprint() {
-            let savedPoints = points.map(p => ({
-                x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id
-            }));
-            let savedSticks = sticks.map(s => ({
-                p1_idx: points.indexOf(s.p1),
-                p2_idx: points.indexOf(s.p2),
-                matId: s.mat.id
-            }));
+            let savedPoints = points.map(p => ({ x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id, uid: p.simId }));
+            let savedSticks = sticks.map(s => ({ p1_idx: points.indexOf(s.p1), p2_idx: points.indexOf(s.p2), matId: s.mat.id, uid: s.simId }));
             blueprint = { points: savedPoints, sticks: savedSticks };
         }
 
         function restoreBlueprint() {
             if (!blueprint) return;
-            // 保存断裂信息（wasBroken 和 breakOrder）以便恢复后标注
-            let oldBrokenInfo = points.map(p => ({ wasBroken: p.wasBroken, breakOrder: p.breakOrder }));
-            let oldStickBroken = sticks.map(s => ({ wasBroken: s.wasBroken, breakOrder: s.breakOrder }));
-
-            points = [];
-            sticks = [];
-            blueprint.points.forEach(bp => addPoint(bp.x, bp.y, bp.pinned, bp.matId));
+            fragments = [];
+            points = []; sticks = [];
+            // 重建蓝图
+            blueprint.points.forEach(bp => addPoint(bp.x, bp.y, bp.pinned, bp.matId, bp.uid));
             blueprint.sticks.forEach(bs => {
-                if (points[bs.p1_idx] && points[bs.p2_idx]) {
-                    sticks.push(new Stick(points[bs.p1_idx], points[bs.p2_idx], bs.matId));
-                }
+                if (points[bs.p1_idx] && points[bs.p2_idx]) sticks.push(new Stick(points[bs.p1_idx], points[bs.p2_idx], bs.matId, bs.uid));
             });
 
-            // 恢复断裂信息
-            for (let i = 0; i < points.length && i < oldBrokenInfo.length; i++) {
-                points[i].wasBroken = oldBrokenInfo[i].wasBroken;
-                points[i].breakOrder = oldBrokenInfo[i].breakOrder;
-            }
-            for (let i = 0; i < sticks.length && i < oldStickBroken.length; i++) {
-                sticks[i].wasBroken = oldStickBroken[i].wasBroken;
-                sticks[i].breakOrder = oldStickBroken[i].breakOrder;
-            }
+            // 将 breakLog 应用回重建的对象上，用于高亮显示
+            breakLog.forEach(log => {
+                if (log.type === 'stick') {
+                    let s = sticks.find(item => item.simId === log.simId);
+                    if (s) { s.wasBroken = true; s.breakOrder = log.order; }
+                } else if (log.type === 'point') {
+                    let p = points.find(item => item.simId === log.simId);
+                    if (p) { p.wasBroken = true; p.breakOrder = log.order; }
+                }
+            });
         }
 
-        function hasAnyBroken() {
-            for (let p of points) if (p.broken) return true;
-            for (let s of sticks) if (s.broken) return true;
-            return false;
-        }
-
-        // --- 全局函数 ---
         window.setMaterial = (matId) => {
             currentMat = matId;
             document.querySelectorAll('.mat-option').forEach(el => el.classList.remove('active'));
@@ -1189,16 +1000,15 @@
             const sliders = document.querySelectorAll('input[type=range]');
 
             if (!isSimulating) {
-                // 开始测试：清除所有历史断裂标记（wasBroken 和 breakOrder），确保从干净状态开始
-                points.forEach(p => { p.wasBroken = false; p.breakOrder = 0; });
-                sticks.forEach(s => { s.wasBroken = false; s.breakOrder = 0; });
-                if (hasAnyBroken()) {
-                    restoreBlueprint(); // 但 blueprint 应该也是干净的，因为 wasBroken 已清
-                }
+                statsLocked = true;
                 saveBlueprint();
+                // 清理状态
+                breakLog = [];
                 nextBreakOrder = 1;
+                fragments = [];
                 points.forEach(p => { p.broken = false; });
                 sticks.forEach(s => { s.broken = false; });
+                
                 angleConstraints = [];
                 buildAngleConstraints();
                 isSimulating = true;
@@ -1206,8 +1016,9 @@
                 btn.innerHTML = "⏹️ 停止测试";
                 btn.classList.add('testing');
                 sliders.forEach(s => s.disabled = false);
-                showToast("测试开始：结构正在缓慢稳定中...");
+                showToast("测试开始：重力引擎已全开");
             } else {
+                statsLocked = false;
                 restoreBlueprint();
                 isSimulating = false;
                 preheatRemaining = 0;
@@ -1219,85 +1030,61 @@
                 document.getElementById('val-wind').innerText = "0级";
                 document.getElementById('val-quake').innerText = "0级";
                 document.getElementById('val-load').innerText = "0kg";
-                // 如果没有新断裂，则所有 wasBroken 为 false，不会显示红色；如果有，则显示
-                showToast("场景已复原");
+                showToast("复盘模式：红色标记为最先断裂处");
             }
         };
 
         window.clearAll = () => {
             if (isSimulating) return;
             if (confirm("确定要清空所有设计吗？")) {
-                points = []; sticks = [];
-                init();
-                blueprint = null;
-                nextBreakOrder = 1;
+                points = []; sticks = []; fragments = []; breakLog = [];
+                init(); blueprint = null;
                 saveHistory();
                 showToast("已清空");
             }
         };
 
-        window.undo = () => {
-            undo();
-        };
-
-        window.toggleDeleteMode = () => {
-            toggleDeleteMode();
-        };
-
-        window.autoConnectIntersections = () => {
-            autoConnectIntersections();
-        };
+        window.undo = () => undo();
+        window.toggleDeleteMode = () => toggleDeleteMode();
+        window.autoConnectIntersections = () => autoConnectIntersections();
 
         function showToast(msg) {
             let t = document.getElementById('toast');
-            if (t) {
-                t.innerText = msg;
-                t.style.opacity = 1;
-                setTimeout(() => t.style.opacity = 0, 2000);
-            }
+            if (t) { t.innerText = msg; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2000); }
         }
 
         function updateStats() {
             const getEl = (id) => document.getElementById(id);
             
             let maxH = 0;
-            points.forEach(p => {
-                if (!p.broken) maxH = Math.max(maxH, groundY - p.y);
-            });
+            points.forEach(p => { if (!p.broken) maxH = Math.max(maxH, groundY - p.y); });
             let heightText = Math.round(maxH / CONFIG.scale) + " cm";
-            let elHeight = getEl('stat-height');
-            if (elHeight) elHeight.innerText = heightText;
-            let elMainHeight = getEl('height-indicator');
+            let elMainHeight = document.getElementById('height-indicator');
             if (elMainHeight) elMainHeight.innerText = `🏔️ 最高点：${heightText}`;
 
-            let nodeCount = points.filter(p=>!p.broken).length;
+            if (statsLocked) return;
+
+            let nodeCount = points.length;
             let elNodes = getEl('stat-nodes');
             if (elNodes) elNodes.innerText = nodeCount;
 
             let lenWood = 0, lenSteel = 0, lenCarbon = 0;
             sticks.forEach(s => {
-                if (!s.broken && !s.p1.broken && !s.p2.broken) {
-                    let l = s.len / CONFIG.scale;
-                    if (s.mat.id === 'wood') lenWood += l;
-                    else if (s.mat.id === 'steel') lenSteel += l;
-                    else if (s.mat.id === 'carbon') lenCarbon += l;
-                }
+                let l = s.len / CONFIG.scale;
+                if (s.mat.id === 'wood') lenWood += l;
+                else if (s.mat.id === 'steel') lenSteel += l;
+                else if (s.mat.id === 'carbon') lenCarbon += l;
             });
 
-            let elLenWood = getEl('stat-len-wood');
-            if (elLenWood) elLenWood.innerText = Math.round(lenWood);
-            let elLenSteel = getEl('stat-len-steel');
-            if (elLenSteel) elLenSteel.innerText = Math.round(lenSteel);
-            let elLenCarbon = getEl('stat-len-carbon');
-            if (elLenCarbon) elLenCarbon.innerText = Math.round(lenCarbon);
+            let elLenWood = getEl('stat-len-wood'); if (elLenWood) elLenWood.innerText = Math.round(lenWood);
+            let elLenSteel = getEl('stat-len-steel'); if (elLenSteel) elLenSteel.innerText = Math.round(lenSteel);
+            let elLenCarbon = getEl('stat-len-carbon'); if (elLenCarbon) elLenCarbon.innerText = Math.round(lenCarbon);
 
             let totalLength = lenWood + lenSteel + lenCarbon;
-            let elTotalLen = getEl('stat-total-length');
-            if (elTotalLen) elTotalLen.innerText = Math.round(totalLength);
+            let elTotalLen = getEl('stat-total-length'); if (elTotalLen) elTotalLen.innerText = Math.round(totalLength);
 
             let cost = nodeCount * CONFIG.nodeBaseCost + lenWood*2 + lenSteel*8 + lenCarbon*20;
-            let elCost = getEl('stat-cost');
-            if (elCost) elCost.innerText = Math.round(cost);
+            let elCost = getEl('stat-cost'); if (elCost) elCost.innerText = Math.round(cost);
         }
 
         init();
