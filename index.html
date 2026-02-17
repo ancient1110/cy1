@@ -168,9 +168,9 @@
         function getUniqueId() { return globalIdCounter++; }
 
         const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1,  angleStrength: 0.10, damping: 0.94, windFactor: 1.25, quakeResponse: 1.15, loadFactor: 1.15, stiffness: 0.78 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3,  angleStrength: 0.35, damping: 0.985, windFactor: 0.70, quakeResponse: 1.00, loadFactor: 0.86, stiffness: 1.10 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50, damping: 0.975, windFactor: 0.48, quakeResponse: 0.90, loadFactor: 0.74, stiffness: 1.32 }
+            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1, angleStrength: 0.10 },
+            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3, angleStrength: 0.35 },
+            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50 }
         };
 
         const CONFIG = {
@@ -294,31 +294,19 @@
                     return;
                 }
 
-                const damping = this.mat.damping || 0.98;
-                let vx = (this.x - this.oldx) * damping;
-                let vy = (this.y - this.oldy) * damping;
+                let vx = (this.x - this.oldx) * 0.98;
+                let vy = (this.y - this.oldy) * 0.98;
 
                 this.oldx = this.x;
                 this.oldy = this.y;
 
                 this.y += CONFIG.gravity * this.mat.mass;
 
-                const topCluster = getTopCluster();
-                if (topCluster && this.y <= topCluster.topY + 40) {
-                    this.y += (env.load * 0.05 * (this.mat.loadFactor || 1));
+                if (groundY - this.y > 100) {
+                    this.y += (env.load * 0.05);
                 }
 
-                const inertia = 1 + (this.mat.mass * 8);
-                this.x += getWindForceAtY(this.y) * (this.mat.windFactor || 1) / inertia;
-
-                if (env.quake > 0) {
-                    const quake = getQuakeOffsets();
-                    // 地震输入按质量缩放：同等地震加速度下，质量越大惯性力越大，轻材相对更抗震。
-                    const quakeMassFactor = 0.55 + this.mat.mass * 2.5;
-                    const quakeScale = (this.mat.quakeResponse || 1) * quakeMassFactor;
-                    this.x += quake.x * 0.02 * quakeScale;
-                    this.y += quake.y * 0.01 * quakeScale;
-                }
+                this.x += getWindForceAtY(this.y);
 
                 this.x += vx;
                 this.y += vy;
@@ -374,7 +362,7 @@
                 }
 
                 let diff = this.len - dist;
-                let percent = (diff / dist / 2) * (this.mat.stiffness || 1);
+                let percent = diff / dist / 2;
                 let ox = dx * percent;
                 let oy = dy * percent;
 
