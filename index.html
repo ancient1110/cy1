@@ -85,7 +85,7 @@ const PHYSICS = {
   solverSubSteps: 8,
   forceCapFactor: 1.35,
   maxNodeSpeed: 8,
-  overloadFramesToFail: 8
+  overloadFramesToFail: 14
 };
 const MATERIALS = [
   { name: '木条', color: '#8e44ad', cost: 2, E: 9e9, density: 500, area: 0.0009, tensile: 35e6, compressive: 24e6, radius: 0.012 },
@@ -113,7 +113,7 @@ const state = {
   nodes: [], members: [], matIdx: 0, simulating: false, deleting: false,
   env: { wind: 0, quake: 0, load: 0 }, history: [], dragStart: null, dragging: false,
   hoverNode: null, hoverMember: null, mouse: { x: 0, y: 0 }, fragments: [],
-  blueprint: null, breakLog: [], nextBreakOrder: 1
+  blueprint: null, breakLog: [], nextBreakOrder: 1, simFrames: 0
 };
 
 function resize() {
@@ -164,6 +164,10 @@ function makeFragments(x, y, color) { for (let i = 0; i < 10; i++) state.fragmen
 function drawFragments() { state.fragments.forEach(f => { f.x += f.vx; f.y += f.vy; f.vy += 0.18; f.life -= 0.02; ctx.globalAlpha = Math.max(0, f.life); ctx.fillStyle = f.color; ctx.fillRect(f.x, f.y, 3, 3); }); ctx.globalAlpha = 1; state.fragments = state.fragments.filter(f => f.life > 0); }
 
 function evaluateStructure() {
+  state.simFrames += 1;
+  const startupRamp = Math.min(1, state.simFrames / 60);
+  const canBreak = state.simFrames > 60;
+
   state.nodes.forEach(n => { n.fx = 0; n.fy = 0; n.mass = 6; });
   const activeMembers = state.members.filter(m => !m.broken && !m.a.broken && !m.b.broken);
 
@@ -175,12 +179,12 @@ function evaluateStructure() {
   }
 
   const liveNodes = state.nodes.filter(n => !n.pinned && !n.broken);
-  liveNodes.forEach(n => n.fy += n.mass * PHYSICS.gravity);
+  liveNodes.forEach(n => n.fy += n.mass * PHYSICS.gravity * startupRamp);
 
   if (state.env.load > 0 && liveNodes.length) {
     const topY = Math.min(...liveNodes.map(n => n.y));
     const topNodes = liveNodes.filter(n => n.y <= topY + 20);
-    const F = (state.env.load * PHYSICS.gravity) / Math.max(1, topNodes.length);
+    const F = (state.env.load * PHYSICS.gravity * startupRamp) / Math.max(1, topNodes.length);
     topNodes.forEach(n => n.fy += F);
   }
 
@@ -192,14 +196,14 @@ function evaluateStructure() {
     const sumWeight = liveNodes.reduce((acc, n) => acc + Math.max(1, (canvas.height - 60 - n.y)), 0);
     liveNodes.forEach(n => {
       const share = Math.max(1, (canvas.height - 60 - n.y)) / sumWeight;
-      n.fx += sway * q * Hm * 0.3 * share;
+      n.fx += sway * q * Hm * 0.3 * share * startupRamp;
     });
   }
 
   if (state.env.quake > 0) {
     const ag = (state.env.quake / 100) * 0.8 * PHYSICS.gravity;
     const ax = Math.sin(performance.now() / 160) * ag;
-    liveNodes.forEach(n => n.fx += n.mass * ax);
+    liveNodes.forEach(n => n.fx += n.mass * ax * startupRamp);
     state.nodes.filter(n => n.pinned).forEach(n => {
       n.x = n.baseX + Math.sin(performance.now() / 160) * (state.env.quake / 100) * 6;
     });
@@ -257,10 +261,10 @@ function evaluateStructure() {
   }
 
   for (const m of activeMembers) {
-    if (m.ratio > 1) m.overloadCount += 1;
+    if (canBreak && m.ratio > 1) m.overloadCount += 1;
     else m.overloadCount = Math.max(0, m.overloadCount - 1);
 
-    if (m.overloadCount >= PHYSICS.overloadFramesToFail) {
+    if (canBreak && m.overloadCount >= PHYSICS.overloadFramesToFail) {
       m.broken = true;
       m.overloadCount = 0;
       if (!state.breakLog.some(i => i.id === m.id && i.type === 'member')) {
@@ -419,7 +423,7 @@ function toast(msg) { const el = document.getElementById('toast'); el.textConten
 function beginSimulation() {
   if (!state.members.length) return toast('请先搭建至少一根杆件');
   state.blueprint = serialize();
-  state.breakLog = []; state.nextBreakOrder = 1; state.fragments = [];
+  state.breakLog = []; state.nextBreakOrder = 1; state.fragments = []; state.simFrames = 0;
   state.nodes.forEach(n => { n.vx = 0; n.vy = 0; n.broken = false; n.wasBroken = false; n.breakOrder = 0; n.baseX = n.x; });
   state.members.forEach(m => { m.broken = false; m.wasBroken = false; m.breakOrder = 0; m.forceN = 0; m.ratio = 0; m.overloadCount = 0; });
   state.simulating = true;
@@ -430,6 +434,7 @@ function beginSimulation() {
 }
 function endSimulation() {
   state.simulating = false;
+  state.simFrames = 0;
   document.getElementById('btn-mode').textContent = '▶️ 开始测试';
   document.getElementById('btn-mode').className = 'mode-btn';
   document.querySelectorAll('input[type=range]').forEach(r => { r.disabled = true; r.value = 0; });
