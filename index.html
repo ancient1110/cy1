@@ -2,1144 +2,959 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>六年级科学：塔台工程 v7.1 (完美物理+断裂复盘) · 现代UI</title>
+    <title>塔台工程模拟器</title>
     <style>
-        /* === 界面样式保持不变 === */
-        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background-color: #f0f2f5; display: flex; user-select: none; }
-        
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background: #f0f2f5; display: flex; user-select: none; }
+
         #canvas-container {
             flex-grow: 1; height: 100vh; position: relative;
-            background: radial-gradient(circle at center, #ffffff 0%, #eef2f3 100%);
+            background: radial-gradient(circle at center, #fff 0%, #eef2f3 100%);
             cursor: crosshair;
         }
 
         #sidebar {
-            width: 320px; height: 100vh; background: #fff;
-            border-left: 1px solid #dcdcdc; display: flex; flex-direction: column;
-            box-shadow: -5px 0 15px rgba(0,0,0,0.05); z-index: 100;
+            width: 310px; height: 100vh; background: #fff;
+            border-left: 1px solid #ddd; display: flex; flex-direction: column;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.06); z-index: 100; flex-shrink: 0;
         }
-
         .sidebar-scroll { padding: 12px 14px; overflow-y: auto; flex-grow: 1; }
 
-        h2 { font-size: 14px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin: 12px 0 8px 0; display: flex; justify-content: space-between; align-items: center; }
+        h2 { font-size: 13px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 4px; margin: 14px 0 8px; }
         h2:first-child { margin-top: 0; }
-        
+
         .mode-btn {
             width: 100%; padding: 11px; border: none; border-radius: 8px;
-            font-size: 16px; font-weight: bold; cursor: pointer; color: white;
-            transition: all 0.3s; margin-bottom: 12px;
+            font-size: 15px; font-weight: bold; cursor: pointer; color: #fff;
             background: linear-gradient(135deg, #2ecc71, #27ae60);
-            box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+            box-shadow: 0 4px 10px rgba(46,204,113,0.35); margin-bottom: 10px; transition: all .2s;
         }
-        .mode-btn.testing {
+        .mode-btn.running {
             background: linear-gradient(135deg, #e74c3c, #c0392b);
-            box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+            box-shadow: 0 4px 10px rgba(231,76,60,0.35);
         }
         .mode-btn:active { transform: scale(0.98); }
 
-        .material-group { display: flex; gap: 8px; margin-bottom: 10px; }
-        .mat-option {
-            flex: 1; padding: 8px 4px; border: 2px solid #ecf0f1; border-radius: 6px;
-            text-align: center; cursor: pointer; transition: all 0.2s; font-size: 11px;
-            background: #f9f9f9;
+        .mat-row { display: flex; gap: 6px; margin-bottom: 8px; }
+        .mat-card {
+            flex: 1; padding: 7px 3px; border: 2px solid #eee; border-radius: 6px;
+            text-align: center; cursor: pointer; font-size: 11px; background: #fafafa; transition: .15s;
         }
-        .mat-option:hover { border-color: #bdc3c7; }
-        .mat-option.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
-        .mat-color { width: 12px; height: 12px; border-radius: 50%; margin: 0 auto 5px; }
+        .mat-card:hover { border-color: #bbb; }
+        .mat-card.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
 
-        .slider-group { margin-bottom: 8px; background: #f8f9fa; padding: 7px 8px; border-radius: 6px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #555; }
-        input[type=range] { width: 100%; cursor: pointer; }
-        
+        .slider-box { background: #f8f9fa; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: #555; margin-bottom: 3px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #3498db; }
+
         .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #555; }
-        .total-cost { display:flex; justify-content: space-between; align-items: baseline; font-size: 20px; color: #e67e22; font-weight: bold; margin-top: 6px; }
-        
-        #toast {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(44, 62, 80, 0.85); color: white; padding: 8px 20px;
-            border-radius: 30px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
-        }
-        
-        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
-        .btn-small {
-            background: #ecf0f1; border: none; padding: 7px 0; border-radius: 4px;
-            cursor: pointer; color: #7f8c8d; font-size: 12px; flex: 1;
-        }
-        .btn-small:hover { background: #ffeaa7; color: #d35400; }
-        .btn-small.danger { background: #fde6e6; color: #c0392b; }
-        .btn-small.danger:hover { background: #f5b7b1; }
+        .total-cost { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; color: #e67e22; font-weight: bold; margin-top: 8px; }
 
-        #delete-mode-toggle {
-            background: #ecf0f1; border: 2px solid #bdc3c7; border-radius: 4px;
-            padding: 7px; text-align: center; cursor: pointer; font-size: 12px; margin-top: 8px;
+        .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+        .btn-s {
+            flex: 1; background: #ecf0f1; border: none; padding: 7px 0;
+            border-radius: 4px; cursor: pointer; font-size: 12px; color: #555;
         }
-        #delete-mode-toggle.active {
-            background: #e74c3c; border-color: #c0392b; color: white;
+        .btn-s:hover { background: #ffeaa7; color: #d35400; }
+        .btn-s.danger { background: #fde6e6; color: #c0392b; }
+        .btn-s.danger:hover { background: #f5b7b1; }
+
+        #btn-del {
+            width: 100%; margin-top: 6px; padding: 7px; background: #ecf0f1;
+            border: 2px solid #bdc3c7; border-radius: 4px; cursor: pointer; font-size: 12px;
         }
+        #btn-del.active { background: #e74c3c; border-color: #c0392b; color: #fff; }
 
         .btn-special {
-            background: #3498db; color: white; width: 100%; padding: 8px;
-            border: none; border-radius: 4px; margin-top: 15px; cursor: pointer;
-            font-size: 14px;
+            width: 100%; margin-top: 8px; padding: 8px; background: #3498db;
+            color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;
         }
         .btn-special:hover { background: #2980b9; }
 
+        #toast {
+            position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+            background: rgba(44,62,80,.88); color: #fff; padding: 8px 18px;
+            border-radius: 30px; opacity: 0; transition: opacity .4s; pointer-events: none; font-size:13px;
+        }
         #height-indicator {
             position: absolute; top: 12px; left: 14px;
-            background: rgba(255,255,255,0.92); color: #2c3e50;
-            border: 1px solid #d5dadd; border-radius: 10px;
-            padding: 8px 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            font-size: 14px; font-weight: 600;
-            pointer-events: none;
+            background: rgba(255,255,255,.92); color: #2c3e50;
+            border: 1px solid #d5d8dc; border-radius: 10px; padding: 7px 12px;
+            font-size: 13px; font-weight: 600; pointer-events: none;
+            box-shadow: 0 3px 8px rgba(0,0,0,.08);
+        }
+        #replay-banner {
+            position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(231,76,60,.9); color: #fff; padding: 8px 18px;
+            border-radius: 20px; font-size: 13px; display: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="canvas-container">
-        <canvas id="simCanvas"></canvas>
-        <div id="toast">提示信息</div>
-        <div id="height-indicator">🏔️ 最高点：0 cm</div>
-    </div>
+<div id="canvas-container">
+    <canvas id="simCanvas"></canvas>
+    <div id="toast"></div>
+    <div id="height-indicator">🏔️ 最高点：0 cm</div>
+    <div id="replay-banner">🔍 复盘模式：红色标记为最先断裂处</div>
+</div>
 
-    <div id="sidebar">
-        <div class="sidebar-scroll">
-            <button id="btn-mode" class="mode-btn" onclick="toggleSimulation()">▶️ 开始测试</button>
+<div id="sidebar">
+    <div class="sidebar-scroll">
+        <button id="btn-mode" class="mode-btn" onclick="toggleSim()">▶️ 开始测试</button>
 
-            <h2>🏗️ 材料选择 (点击切换)</h2>
-            <div class="material-group">
-                <div class="mat-option active" onclick="setMaterial('wood')" id="mat-wood">
-                    <div class="mat-color" style="background:#8e44ad"></div>
-                    <div>普通木条<br>¥2/cm</div>
-                </div>
-                <div class="mat-option" onclick="setMaterial('steel')" id="mat-steel">
-                    <div class="mat-color" style="background:#2c3e50"></div>
-                    <div>加强钢材<br>¥8/cm</div>
-                </div>
-                <div class="mat-option" onclick="setMaterial('carbon')" id="mat-carbon">
-                    <div class="mat-color" style="background:#2980b9"></div>
-                    <div>碳纤维<br>¥20/cm</div>
-                </div>
+        <h2>🏗️ 材料选择</h2>
+        <div class="mat-row">
+            <div class="mat-card active" onclick="setMat(0)" id="mat-0">
+                <div style="width:10px;height:10px;background:#8e44ad;border-radius:50%;margin:0 auto 4px"></div>
+                木条<br>¥2/cm
             </div>
-            <div style="font-size:12px; color:#7f8c8d; margin-top:5px;">
-                * 当前选择材料将用于新建的木条和节点。
+            <div class="mat-card" onclick="setMat(1)" id="mat-1">
+                <div style="width:10px;height:10px;background:#2c3e50;border-radius:50%;margin:0 auto 4px"></div>
+                钢管<br>¥8/cm
             </div>
-
-            <h2>🎛️ 环境测试台</h2>
-            <div class="slider-group">
-                <div class="slider-label"><span>💨 风力等级</span> <span id="val-wind">0级</span></div>
-                <input type="range" min="0" max="100" value="0" oninput="updateEnv('wind', this.value)" disabled id="slider-wind">
+            <div class="mat-card" onclick="setMat(2)" id="mat-2">
+                <div style="width:10px;height:10px;background:#2980b9;border-radius:50%;margin:0 auto 4px"></div>
+                碳纤<br>¥20/cm
             </div>
-            <div class="slider-group">
-                <div class="slider-label"><span>🌋 地震强度</span> <span id="val-quake">0级</span></div>
-                <input type="range" min="0" max="100" value="0" oninput="updateEnv('quake', this.value)" disabled id="slider-quake">
-            </div>
-            <div class="slider-group">
-                <div class="slider-label"><span>⚖️ 顶部压重</span> <span id="val-load">0kg</span></div>
-                <input type="range" min="0" max="100" value="0" oninput="updateEnv('load', this.value)" disabled id="slider-load">
-            </div>
-
-            <h2>📊 工程造价单</h2>
-            <div class="stat-row"><span>节点数量:</span> <span id="stat-nodes">0</span> × ¥50</div>
-            <div class="stat-row"><span>杆件总长:</span> <span id="stat-total-length">0 cm</span></div>
-            <div class="stat-row"><span>木条长度:</span> <span id="stat-len-wood">0 cm</span> (¥2/cm)</div>
-            <div class="stat-row"><span>钢材长度:</span> <span id="stat-len-steel">0 cm</span> (¥8/cm)</div>
-            <div class="stat-row"><span>碳纤长度:</span> <span id="stat-len-carbon">0 cm</span> (¥20/cm)</div>
-            <div class="total-cost"><span>总价:</span><span>¥<span id="stat-cost">0</span></span></div>
-
-            <div style="display: flex; gap: 8px; margin: 20px 0 10px;">
-                <button class="btn-small" onclick="undo()">↩️ 撤销</button>
-                <button class="btn-small danger" onclick="clearAll()">🗑️ 全部清空</button>
-            </div>
-            <div id="delete-mode-toggle" onclick="toggleDeleteMode()">✂️ 删除模式 (关闭)</div>
-            
-            <button class="btn-special" onclick="autoConnectIntersections()">🔗 自动连接交叉点</button>
         </div>
+
+        <h2>🎛️ 环境载荷</h2>
+        <div class="slider-box">
+            <div class="slider-label"><span>💨 风力</span><span id="disp-wind">0级</span></div>
+            <input type="range" id="range-wind" min="0" max="100" value="0" disabled oninput="setEnv('wind',this.value)">
+        </div>
+        <div class="slider-box">
+            <div class="slider-label"><span>🌋 地震</span><span id="disp-quake">0级</span></div>
+            <input type="range" id="range-quake" min="0" max="100" value="0" disabled oninput="setEnv('quake',this.value)">
+        </div>
+        <div class="slider-box">
+            <div class="slider-label"><span>⚖️ 顶部压重</span><span id="disp-load">0kg</span></div>
+            <input type="range" id="range-load" min="0" max="100" value="0" disabled oninput="setEnv('load',this.value)">
+        </div>
+
+        <h2>📊 工程造价单</h2>
+        <div class="stat-row"><span>节点数:</span><span id="count-node">0</span> × ¥50</div>
+        <div class="stat-row"><span>杆件总长:</span><span id="stat-total-len">0 cm</span></div>
+        <div class="stat-row"><span>木条:</span><span id="stat-len-wood">0 cm</span> (¥2)</div>
+        <div class="stat-row"><span>钢管:</span><span id="stat-len-steel">0 cm</span> (¥8)</div>
+        <div class="stat-row"><span>碳纤:</span><span id="stat-len-carbon">0 cm</span> (¥20)</div>
+        <div class="stat-row"><span>最大应力:</span><span id="max-stress">0%</span></div>
+        <div class="total-cost"><span>总价:</span><span>¥<span id="cost-total">0</span></span></div>
+
+        <div class="btn-row">
+            <button class="btn-s" onclick="undo()">↩️ 撤销</button>
+            <button class="btn-s danger" onclick="clearAll()">🗑️ 清空</button>
+        </div>
+        <button id="btn-del" onclick="toggleDel()">✂️ 删除模式：关闭</button>
+        <button class="btn-special" onclick="autoConnect()">🔗 自动连接交叉点</button>
     </div>
+</div>
 
 <script>
-    (function() {
-        const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('canvas-container');
+// ===== 物理配置 =====
+const PHYSICS = {
+    subSteps: 20,
+    gravity: 0.15,
+    groundY: 0,
+    scale: 50.0,
+    snap: 12,
+    damping: 0.98,
+};
 
-        // --- 全局计数器，用于追踪对象ID (核心：用于复盘) ---
-        let globalIdCounter = 0;
-        function getUniqueId() { return globalIdCounter++; }
+const MATERIALS = [
+    { name:'木条', cost:2,  color:'#8e44ad', stiffness:0.25, density:0.3,  strength:0.12 },
+    { name:'钢管', cost:8,  color:'#2c3e50', stiffness:0.60, density:2.0,  strength:0.35 },
+    { name:'碳纤', cost:20, color:'#2980b9', stiffness:0.70, density:0.1,  strength:0.30 },
+];
 
-        const MATERIALS = {
-            wood:   { id: 'wood',   name: '木条', color: '#8e44ad', cost: 2,  strength: 15,  nodeStrength: 40,  mass: 0.1, angleStrength: 0.10 },
-            steel:  { id: 'steel',  name: '钢材', color: '#2c3e50', cost: 8,  strength: 60,  nodeStrength: 120, mass: 0.3, angleStrength: 0.35 },
-            carbon: { id: 'carbon', name: '碳纤', color: '#2980b9', cost: 20, strength: 100, nodeStrength: 180, mass: 0.05, angleStrength: 0.50 }
-        };
+// ===== 全局状态 =====
+let state = {
+    simulating: false,
+    nodes: [], sticks: [], bends: [],
+    warmupFrames: 0,
+    matIdx: 0,
+    env: { wind:0, quake:0, load:0 },
+    mouse: {x:0,y:0},
+    dragging: false, dragStart: null,
+    hoverNode: null, hoverStick: null,
+    deleting: false,
+    history: [],
+    blueprint: null,      // 模拟前快照
+    breakLog: [],         // 断裂记录（用于复盘）
+    nextBreakOrder: 1,
+    statsLocked: false,   // 模拟中锁定造价统计
+};
 
-        const CONFIG = {
-            gravity: 2.0,      // 硬核重力
-            groundHeight: 60,
-            snapDist: 15,
-            maxStickLen: 120,
-            scale: 10,
-            nodeBaseCost: 50,
-            angleStiffness: 0.1,
-            angleIterations: 3,
-            minPointMass: 0.05,
-            nodeMassFactor: 4,
-            loadForceScale: 0.22,
-            windForceScale: 1.6,
-            quakeForceScale: 0.8
-        };
+// ===== 碎片特效 =====
+let fragments = [];
+function createExplosion(x, y, color='#e67e22') {
+    for (let i=0; i<8; i++) fragments.push({
+        x, y, color,
+        vx:(Math.random()-.5)*8, vy:(Math.random()-.5)*8-2,
+        life:1.0, size:Math.random()*3+2
+    });
+}
+function updateFragments() {
+    fragments.forEach(f => {
+        f.x += f.vx; f.y += f.vy;
+        f.vy += 0.4; // 重力
+        f.life -= 0.025;
+        ctx.globalAlpha = f.life;
+        ctx.fillStyle = f.color;
+        ctx.fillRect(f.x, f.y, f.size, f.size);
+    });
+    ctx.globalAlpha = 1;
+    fragments = fragments.filter(f => f.life > 0);
+}
 
-        // --- 碎片特效系统 ---
-        class Fragment {
-            constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.vx = (Math.random() - 0.5) * 8;
-                this.vy = (Math.random() - 0.5) * 8 - 2;
-                this.life = 1.0;
-                this.color = color;
-                this.size = Math.random() * 3 + 2;
+// ===== Node 类 =====
+class Node {
+    constructor(x, y, pinned, matIdx=0) {
+        this.x = x; this.y = y;
+        this.oldX = x; this.oldY = y;
+        this.baseX = x; // 地震用：记录初始X
+        this.pinned = pinned;
+        this.matIdx = matIdx;
+        this.mass = 1;
+        this.forceX = 0; this.forceY = 0;
+        this.id = Math.random();
+        this.broken = false;
+        this.wasBroken = false; this.breakOrder = 0; // 复盘用
+    }
+
+    update() {
+        if (this.pinned) {
+            // 地震：让固定节点振动
+            if (state.env.quake > 0) {
+                let t = Date.now();
+                let xAmp = state.env.quake / 5;
+                let yAmp = state.env.quake / 8;
+                this.x = this.baseX + Math.sin(t/50) * xAmp;
+                this.y = PHYSICS.groundY + Math.cos(t/65) * yAmp;
+            } else {
+                this.x = this.baseX;
+                this.y = PHYSICS.groundY;
             }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.vy += 0.5;
-                this.life -= 0.02;
+            this.oldX = this.x; this.oldY = this.y;
+            return;
+        }
+        let vx = (this.x - this.oldX) * PHYSICS.damping;
+        let vy = (this.y - this.oldY) * PHYSICS.damping;
+        this.oldX = this.x; this.oldY = this.y;
+        let ax = this.forceX / this.mass;
+        let ay = this.forceY / this.mass;
+        this.x += vx + ax * 0.125 * 0.125;
+        this.y += vy + ay * 0.125 * 0.125;
+        if (this.y > PHYSICS.groundY) {
+            this.y = PHYSICS.groundY;
+            this.oldY = this.y + vy * 0.5;
+        }
+        this.forceX = 0; this.forceY = 0;
+    }
+}
+
+// ===== Stick 类 =====
+class Stick {
+    constructor(n1, n2, matIdx) {
+        this.n1 = n1; this.n2 = n2;
+        this.mat = MATERIALS[matIdx];
+        this.matIdx = matIdx;
+        this.len = Math.hypot(n1.x-n2.x, n1.y-n2.y);
+        this.stress = 0;
+        this.broken = false;
+        this.id = Math.random();
+        this.wasBroken = false; this.breakOrder = 0;
+    }
+
+    getMass() { return (this.len/PHYSICS.scale)*this.mat.density; }
+
+    solve() {
+        if (this.broken) return;
+        let dx = this.n2.x-this.n1.x, dy = this.n2.y-this.n1.y;
+        let currLen = Math.hypot(dx, dy);
+        if (currLen === 0) return;
+        let diff = currLen - this.len;
+        // 每次迭代累积|correction|，总累积量正比于约束力（XPBD的Lagrange乘子）
+        // 比"修正前最大值"更准确：两段等长杆受相同轴力时累积量相同
+        this.stress += diff / this.len / PHYSICS.subSteps;
+
+        let offX = (dx/currLen)*diff*0.5, offY = (dy/currLen)*diff*0.5;
+        if (!this.n1.pinned && !this.n2.pinned) {
+            this.n1.x+=offX; this.n1.y+=offY; this.n1.oldX+=offX; this.n1.oldY+=offY;
+            this.n2.x-=offX; this.n2.y-=offY; this.n2.oldX-=offX; this.n2.oldY-=offY;
+        } else if (!this.n1.pinned) {
+            this.n1.x+=offX*2; this.n1.y+=offY*2; this.n1.oldX+=offX*2; this.n1.oldY+=offY*2;
+        } else if (!this.n2.pinned) {
+            this.n2.x-=offX*2; this.n2.y-=offY*2; this.n2.oldX-=offX*2; this.n2.oldY-=offY*2;
+        }
+    }
+
+    draw() {
+        if (this.broken) return;
+        let dx = this.n2.x-this.n1.x, dy = this.n2.y-this.n1.y;
+        let len = Math.hypot(dx, dy);
+        if (len === 0) return;
+
+        // 复盘高亮
+        if (!state.simulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= 3) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 6;
+            ctx.moveTo(this.n1.x, this.n1.y); ctx.lineTo(this.n2.x, this.n2.y); ctx.stroke();
+        }
+
+        // 杆件本体：始终用材料原色
+        ctx.beginPath();
+        ctx.strokeStyle = this.mat.color;
+        ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.moveTo(this.n1.x, this.n1.y); ctx.lineTo(this.n2.x, this.n2.y); ctx.stroke();
+
+        // 模拟中：在杆件旁边画应力细线
+        if (state.simulating && Math.abs(this.stress) > 0.001) {
+            let ratio = Math.max(-1, Math.min(1, this.stress / this.mat.strength));
+            let stressColor = ratio > 0
+                ? `rgba(220, 50, 50, ${Math.abs(ratio) * 0.85})`   // 拉伸红
+                : `rgba(50, 100, 220, ${Math.abs(ratio) * 0.85})`; // 压缩蓝
+            // 垂直偏移4px
+            let nx = -(dy/len)*4, ny = (dx/len)*4;
+            ctx.beginPath();
+            ctx.strokeStyle = stressColor;
+            ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+            ctx.moveTo(this.n1.x+nx, this.n1.y+ny);
+            ctx.lineTo(this.n2.x+nx, this.n2.y+ny);
+            ctx.stroke();
+        }
+    }
+}
+
+// ===== BendConstraint =====
+class BendConstraint {
+    constructor(a, b, c, s1, s2) {
+        this.a=a; this.b=b; this.c=c; this.s1=s1; this.s2=s2;
+        this.targetAngle = this._angle();
+        this.valid = true;
+    }
+    _angle() {
+        let ax=this.a.x-this.b.x, ay=this.a.y-this.b.y;
+        let cx=this.c.x-this.b.x, cy=this.c.y-this.b.y;
+        return Math.atan2(ay,ax) - Math.atan2(cy,cx);
+    }
+    solve() {
+        if (this.s1.broken || this.s2.broken) return;
+        if (this.a.broken || this.b.broken || this.c.broken) return;
+        let ax=this.a.x-this.b.x, ay=this.a.y-this.b.y;
+        let cx=this.c.x-this.b.x, cy=this.c.y-this.b.y;
+        let la=Math.hypot(ax,ay), lc=Math.hypot(cx,cy);
+        if (la<0.001||lc<0.001) return;
+        let curAngle = Math.atan2(ay,ax)-Math.atan2(cy,cx);
+        let diff = curAngle - this.targetAngle;
+        while(diff>Math.PI) diff-=2*Math.PI;
+        while(diff<-Math.PI) diff+=2*Math.PI;
+        if (Math.abs(diff)<0.0001) return;
+        // 初始角接近180°（直线节点，即杆件中间插入的节点）用更高刚性
+        // 这类节点代表"连续杆件"，必须强力阻止弯折
+        let baseK = (this.s1&&this.s2) ? (this.s1.mat.stiffness+this.s2.mat.stiffness)*0.5 : 0.3;
+        let angleDev = Math.abs(Math.abs(this.targetAngle) - Math.PI); // 偏离180°的程度
+        let isStraight = angleDev < 0.3; // 初始接近直线
+        let k = isStraight ? Math.max(baseK, 0.6) : baseK; // 直线节点强制至少0.6刚性
+        let half = diff*k*0.5;
+        let cosH=Math.cos(-half),sinH=Math.sin(-half);
+        let nax=ax*cosH-ay*sinH, nay=ax*sinH+ay*cosH;
+        let ccosH=Math.cos(half),csinH=Math.sin(half);
+        let ncx=cx*ccosH-cy*csinH, ncy=cx*csinH+cy*ccosH;
+        if (!this.a.pinned) {
+            let mx=(this.b.x+nax)-this.a.x, my=(this.b.y+nay)-this.a.y;
+            this.a.x+=mx; this.a.y+=my; this.a.oldX+=mx; this.a.oldY+=my;
+        }
+        if (!this.c.pinned) {
+            let mx=(this.b.x+ncx)-this.c.x, my=(this.b.y+ncy)-this.c.y;
+            this.c.x+=mx; this.c.y+=my; this.c.oldX+=mx; this.c.oldY+=my;
+        }
+    }
+}
+
+// ===== 主程序 =====
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+
+function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    addNode(canvas.width/2-60, PHYSICS.groundY, true);
+    addNode(canvas.width/2+60, PHYSICS.groundY, true);
+    saveHistory();
+    loop();
+}
+
+function resize() {
+    canvas.width = document.getElementById('canvas-container').offsetWidth;
+    canvas.height = document.getElementById('canvas-container').offsetHeight;
+    PHYSICS.groundY = canvas.height - 60;
+    state.nodes.forEach(n => { if(n.pinned){ n.y=PHYSICS.groundY; n.baseX=n.x; } });
+}
+
+function addNode(x, y, pinned=false, matIdx=null) {
+    let n = new Node(x, y, pinned, matIdx!=null?matIdx:state.matIdx);
+    state.nodes.push(n);
+    return n;
+}
+
+function buildBends() {
+    state.bends = [];
+    state.nodes.forEach(b => {
+        let connected = state.sticks.filter(s => !s.broken && (s.n1===b||s.n2===b));
+        for (let i=0;i<connected.length;i++) for (let j=i+1;j<connected.length;j++) {
+            let a = connected[i].n1===b ? connected[i].n2 : connected[i].n1;
+            let c = connected[j].n1===b ? connected[j].n2 : connected[j].n1;
+            let bc = new BendConstraint(a, b, c, connected[i], connected[j]);
+            if (bc.valid) state.bends.push(bc);
+        }
+    });
+}
+
+// ===== 压重可视化 =====
+function drawLoadVisual() {
+    if (!state.simulating || state.env.load <= 0) return;
+    let active = state.nodes.filter(n => !n.broken);
+    if (!active.length) return;
+    let topY = Math.min(...active.map(n=>n.y));
+    let band = active.filter(n=>n.y<=topY+30);
+    if (!band.length) return;
+    let cx = band.reduce((s,n)=>s+n.x,0)/band.length;
+    let load = state.env.load;
+    let plateW = Math.max(100, Math.min(260, 100+load*1.4));
+    let plateH = 14;
+    let plateX = cx-plateW/2, plateY = Math.max(30, topY-24);
+    let blockW = Math.max(80, plateW*0.6);
+    let blockH = 20+load*0.7;
+    let blockX = cx-blockW/2, blockY = plateY-blockH-16;
+
+    ctx.fillStyle='rgba(52,73,94,0.95)'; ctx.fillRect(blockX,blockY,blockW,blockH);
+    ctx.fillStyle='#ecf0f1'; ctx.font='bold 13px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(`${load}kg`, cx, blockY+blockH/2+5);
+    ctx.strokeStyle='rgba(60,60,60,.9)'; ctx.lineWidth=2.5; ctx.beginPath();
+    ctx.moveTo(cx,blockY+blockH); ctx.lineTo(cx,plateY); ctx.stroke();
+    ctx.fillStyle='rgba(127,140,141,.95)'; ctx.fillRect(plateX,plateY,plateW,plateH);
+    ctx.strokeStyle='#888'; ctx.lineWidth=1; ctx.strokeRect(plateX,plateY,plateW,plateH);
+    ctx.textAlign='left';
+}
+
+// ===== 主循环 =====
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 地面
+    ctx.fillStyle = '#95a5a6';
+    ctx.fillRect(0, PHYSICS.groundY, canvas.width, canvas.height-PHYSICS.groundY);
+
+    drawGrid();
+
+    if (state.simulating) {
+        // 质量初始化
+        state.nodes.forEach(n => n.mass=0.5);
+        state.sticks.forEach(s => {
+            if (!s.broken) {
+                s.stress = 0;
+                let m=s.getMass()/2;
+                s.n1.mass+=m; s.n2.mass+=m;
             }
-            draw(ctx) {
-                ctx.globalAlpha = this.life;
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.size, this.size);
-                ctx.globalAlpha = 1.0;
+        });
+        // 归一化：中间节点连接多根杆，质量等比缩减，避免中间节点过重导致差异应力
+        state.nodes.forEach(n => {
+            if (!n.pinned) {
+                let conn = state.sticks.filter(s=>!s.broken&&(s.n1===n||s.n2===n)).length;
+                if (conn > 1) n.mass = n.mass / Math.sqrt(conn); // sqrt缩减，保留部分质量差异但不过分
+            }
+        });
+
+        // 顶部压重
+        let active = state.nodes.filter(n=>!n.pinned&&!n.broken);
+        if (active.length>0 && state.env.load>0) {
+            let topNode = active.reduce((a,b)=>a.y<b.y?a:b);
+            topNode.forceY += state.env.load*9.8;
+        }
+
+        // 重力
+        active.forEach(n => n.forceY += PHYSICS.gravity*n.mass*50);
+
+        // 风力：总力 = wind×结构高度，按高度权重分配
+        if (state.env.wind>0 && active.length>0) {
+            let windDir = Math.sin(Date.now()/500);
+            let topY = Math.min(...active.map(n=>n.y));
+            let structH = PHYSICS.groundY - topY;
+            if (structH>0) {
+                let totalWind = windDir*state.env.wind*2.0*structH/500;
+                let heights = active.map(n=>Math.max(0,PHYSICS.groundY-n.y));
+                let sumH = heights.reduce((a,b)=>a+b,0);
+                active.forEach((n,i) => n.forceX += totalWind*(heights[i]/sumH));
             }
         }
-        let fragments = [];
-        function createExplosion(x, y, color) {
-            for(let i=0; i<8; i++) {
-                fragments.push(new Fragment(x, y, color));
-            }
+
+        // 积分
+        state.nodes.forEach(n => n.update());
+
+        // 约束迭代
+        for (let i=0; i<PHYSICS.subSteps; i++) {
+            state.bends.forEach(b => b.solve());
+            state.sticks.forEach(s => s.solve());
+            state.bends.forEach(b => b.solve());
         }
 
-        // --- 全局变量 ---
-        let width, height, groundY;
-        let points = [];
-        let sticks = [];
-        let isSimulating = false;
-        let statsLocked = false;
-        let currentMat = 'wood';
-        let blueprint = null;
-        let env = { wind: 0, quake: 0, load: 0 };
-        let mouse = { x: 0, y: 0 };
-        let dragStart = null;
-        let isDragging = false;
-        let hoveredPoint = null;
-        let hoveredStick = null;
-        let preheatRemaining = 0;
-        let angleConstraints = [];
-        let historyStack = [];
-        const MAX_HISTORY = 20;
-        let deleteMode = false;
-
-        // --- 断裂日志 (用于复原后高亮) ---
-        let breakLog = []; 
-        let nextBreakOrder = 1;
-
-        function getWindForceAtY(y) {
-            if (!isSimulating || env.wind <= 0) return 0;
-            const amplitude = (groundY - y) / 1000 * (env.wind / 20);
-            const phase = Date.now() / 350;
-            return Math.sin(phase) * amplitude;
-        }
-
-        function getQuakeOffsets() {
-            if (!isSimulating || env.quake <= 0) return { x: 0, y: 0 };
-            const t = Date.now();
-            const xAmp = env.quake / 5;
-            const yAmp = env.quake / 8;
-            return {
-                x: Math.sin(t / 50) * xAmp,
-                y: Math.cos(t / 65) * yAmp
-            };
-        }
-
-        function getQuakeForce() {
-            if (!isSimulating || env.quake <= 0) return { x: 0, y: 0 };
-            const t = Date.now();
-            return {
-                x: Math.sin(t / 42) * env.quake * CONFIG.quakeForceScale,
-                y: Math.cos(t / 58) * env.quake * CONFIG.quakeForceScale * 0.45
-            };
-        }
-
-        function getPointMass(point) {
-            return Math.max(CONFIG.minPointMass, point.dynamicMass || (point.mat.mass * CONFIG.nodeMassFactor));
-        }
-
-        function refreshPointMasses() {
-            points.forEach(p => {
-                p.dynamicMass = Math.max(CONFIG.minPointMass, p.mat.mass * CONFIG.nodeMassFactor);
+        // 预热结束后判断破断
+        state.warmupFrames++;
+        if (state.warmupFrames > 30) {
+            // 杆件断裂
+            state.sticks.forEach(s => {
+                if (!s.broken && Math.abs(s.stress)>s.mat.strength) {
+                    s.broken = true;
+                    if (!state.breakLog.find(l=>l.type==='stick'&&l.id===s.id)) {
+                        state.breakLog.push({type:'stick',id:s.id,order:state.nextBreakOrder++});
+                        createExplosion((s.n1.x+s.n2.x)/2,(s.n1.y+s.n2.y)/2,s.mat.color);
+                    }
+                }
             });
 
-            sticks.forEach(s => {
-                if (s.broken) return;
-                const stickMass = (s.len / CONFIG.scale) * s.mat.mass;
-                const halfMass = stickMass * 0.5;
-                s.p1.dynamicMass += halfMass;
-                s.p2.dynamicMass += halfMass;
+            // 孤立节点清理
+            state.nodes.filter(n=>!n.pinned&&!n.broken).forEach(n => {
+                let conn = state.sticks.filter(s=>!s.broken&&(s.n1===n||s.n2===n)).length;
+                if (conn===0) { n.broken=true; createExplosion(n.x,n.y,'#888'); }
             });
         }
+    }
 
-        // --- Point 类 ---
-        class Point {
-            constructor(x, y, pinned, matId, uid = null) {
-                this.x = x; this.y = y;
-                this.oldx = x; this.oldy = y;
-                this.pinned = pinned;
-                this.mat = MATERIALS[matId];
-                this.baseX = x;
-                this.broken = false; 
-                this.simId = uid !== null ? uid : getUniqueId(); // 唯一ID，用于跨模拟/编辑追踪
-                this.dynamicMass = Math.max(CONFIG.minPointMass, this.mat.mass * CONFIG.nodeMassFactor);
-                
-                // 复盘属性
-                this.wasBroken = false;
-                this.breakOrder = 0;
-            }
+    // 绘制压重
+    drawLoadVisual();
 
-            update() {
-                if (!isSimulating) {
-                    this.oldx = this.x;
-                    this.oldy = this.y;
-                    return;
-                }
+    // 绘制杆件
+    state.sticks.forEach(s => s.draw());
 
-                if (this.pinned) {
-                    const quake = getQuakeOffsets();
-                    if (env.quake > 0) {
-                        this.x = this.baseX + quake.x;
-                        this.y = groundY + quake.y;
-                    } else {
-                        this.x += (this.baseX - this.x) * 0.1;
-                        this.y = groundY;
-                    }
-                    this.oldx = this.x;
-                    this.oldy = this.y;
-                    return;
-                }
+    // 悬停杆件高亮
+    if (!state.simulating && !state.deleting && state.hoverStick && !state.hoverNode) {
+        ctx.strokeStyle='#2ecc71'; ctx.lineWidth=7; ctx.globalAlpha=0.45;
+        ctx.beginPath();
+        ctx.moveTo(state.hoverStick.n1.x,state.hoverStick.n1.y);
+        ctx.lineTo(state.hoverStick.n2.x,state.hoverStick.n2.y);
+        ctx.stroke(); ctx.globalAlpha=1;
+        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
+        ctx.beginPath(); ctx.arc(proj.x,proj.y,6,0,Math.PI*2);
+        ctx.fillStyle='#2ecc71'; ctx.fill();
+    }
 
-                let vx = (this.x - this.oldx) * 0.98;
-                let vy = (this.y - this.oldy) * 0.98;
-                const invMass = 1 / getPointMass(this);
-                const quakeForce = getQuakeForce();
+    // 绘制节点
+    state.nodes.forEach(n => {
+        if (n.broken) return;
+        // 复盘高亮
+        if (!state.simulating && n.wasBroken && n.breakOrder>0 && n.breakOrder<=3) {
+            ctx.beginPath(); ctx.arc(n.x,n.y,12,0,Math.PI*2);
+            ctx.strokeStyle='#e74c3c'; ctx.lineWidth=3; ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.pinned?8:5,0,Math.PI*2);
+        ctx.fillStyle = n.pinned ? '#34495e' : MATERIALS[n.matIdx].color;
+        ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1; ctx.stroke();
+    });
 
-                this.oldx = this.x;
-                this.oldy = this.y;
+    // 拖拽预览（带分段提示）
+    if (state.dragging && state.dragStart) {
+        let dest = state.hoverNode || state.mouse;
+        if (!state.hoverNode && state.hoverStick)
+            dest = getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
+        ctx.beginPath(); ctx.moveTo(state.dragStart.x,state.dragStart.y);
+        ctx.lineTo(dest.x,dest.y);
+        ctx.strokeStyle=MATERIALS[state.matIdx].color; ctx.lineWidth=2.5;
+        ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+    }
 
-                this.y += CONFIG.gravity;
+    // 删除模式悬停
+    if (state.deleting && !state.simulating) {
+        if (state.hoverStick) {
+            ctx.beginPath();
+            ctx.moveTo(state.hoverStick.n1.x,state.hoverStick.n1.y);
+            ctx.lineTo(state.hoverStick.n2.x,state.hoverStick.n2.y);
+            ctx.strokeStyle='#e67e22'; ctx.lineWidth=8;
+            ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+        }
+        if (state.hoverNode) {
+            ctx.beginPath(); ctx.arc(state.hoverNode.x,state.hoverNode.y,13,0,Math.PI*2);
+            ctx.strokeStyle='#e74c3c'; ctx.lineWidth=3; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+        }
+    }
 
-                if (groundY - this.y > 100) {
-                    this.y += env.load * CONFIG.loadForceScale * invMass;
-                }
+    updateFragments();
+    updateStats();
+    requestAnimationFrame(loop);
+}
 
-                this.x += getWindForceAtY(this.y) * CONFIG.windForceScale * invMass;
-                this.x += quakeForce.x * invMass;
-                this.y += quakeForce.y * invMass;
+// ===== 蓝图（复盘系统）=====
+function saveBlueprint() {
+    state.blueprint = {
+        nodes: state.nodes.map(n=>({x:n.x,y:n.y,pinned:n.pinned,matIdx:n.matIdx,id:n.id})),
+        sticks: state.sticks.map(s=>({n1:s.n1.id,n2:s.n2.id,matIdx:s.matIdx,id:s.id}))
+    };
+}
 
-                this.x += vx;
-                this.y += vy;
+function restoreBlueprint() {
+    if (!state.blueprint) return;
+    fragments = [];
+    state.nodes = state.blueprint.nodes.map(d=>{
+        let n=new Node(d.x,d.y,d.pinned,d.matIdx); n.id=d.id; return n;
+    });
+    state.sticks = state.blueprint.sticks.map(d=>{
+        let n1=state.nodes.find(n=>n.id===d.n1);
+        let n2=state.nodes.find(n=>n.id===d.n2);
+        if (!n1||!n2) return null;
+        let s=new Stick(n1,n2,d.matIdx); s.id=d.id; return s;
+    }).filter(Boolean);
+    // 把 breakLog 应用回来，用于复盘高亮
+    state.breakLog.forEach(log => {
+        if (log.type==='stick') {
+            let s=state.sticks.find(s=>s.id===log.id);
+            if (s) { s.wasBroken=true; s.breakOrder=log.order; }
+        } else {
+            let n=state.nodes.find(n=>n.id===log.id);
+            if (n) { n.wasBroken=true; n.breakOrder=log.order; }
+        }
+    });
+    state.bends = [];
+}
 
-                if (this.y > groundY) {
-                    this.y = groundY;
-                    this.oldy = this.y + vy * 0.5;
-                }
+// ===== 历史记录 =====
+function saveHistory() {
+    if (state.history.length>=20) state.history.shift();
+    state.history.push({
+        nodes: state.nodes.map(n=>({x:n.x,y:n.y,pinned:n.pinned,matIdx:n.matIdx,id:n.id})),
+        sticks: state.sticks.map(s=>({n1:s.n1.id,n2:s.n2.id,matIdx:s.matIdx}))
+    });
+}
+
+window.undo = () => {
+    if (state.simulating) return toast("测试中不能撤销");
+    if (state.history.length<=1) return toast("没有更多步骤");
+    state.history.pop();
+    let prev=state.history[state.history.length-1];
+    state.nodes = prev.nodes.map(d=>{let n=new Node(d.x,d.y,d.pinned,d.matIdx);n.id=d.id;return n;});
+    state.sticks = prev.sticks.map(d=>{
+        let n1=state.nodes.find(n=>n.id===d.n1), n2=state.nodes.find(n=>n.id===d.n2);
+        if(n1&&n2) return new Stick(n1,n2,d.matIdx);
+    }).filter(Boolean);
+    state.bends=[];
+    // 恢复后清理孤立节点（快照间中间状态可能产生孤儿）
+    state.nodes = state.nodes.filter(n => n.pinned || state.sticks.some(s => s.n1===n || s.n2===n));
+    toast("撤销成功");
+};
+
+// ===== 模拟开关 =====
+window.toggleSim = () => {
+    let btn=document.getElementById('btn-mode');
+    let ranges=document.querySelectorAll('input[type=range]');
+    let banner=document.getElementById('replay-banner');
+
+    if (!state.simulating) {
+        // 开始
+        state.statsLocked = true;
+        saveBlueprint();
+        state.breakLog=[]; state.nextBreakOrder=1; fragments=[];
+        state.nodes.forEach(n=>{n.broken=false;n.wasBroken=false;n.breakOrder=0;});
+        state.sticks.forEach(s=>{s.broken=false;s.wasBroken=false;s.breakOrder=0;});
+        // 清零速度
+        state.nodes.forEach(n=>{n.oldX=n.x;n.oldY=n.y;n.forceX=0;n.forceY=0;});
+        buildBends();
+        state.warmupFrames=0;
+        state.simulating=true;
+        btn.textContent='⏹️ 停止测试'; btn.className='mode-btn running';
+        ranges.forEach(r=>r.disabled=false);
+        banner.style.display='none';
+        toast("测试开始");
+    } else {
+        // 停止 → 复盘
+        state.statsLocked=false;
+        state.simulating=false;
+        ranges.forEach(r=>{r.value=0;r.disabled=true;});
+        state.env={wind:0,quake:0,load:0};
+        ['wind','quake','load'].forEach(k=>{
+            document.getElementById('disp-'+k).innerText='0'+(k==='load'?'kg':'级');
+        });
+        restoreBlueprint();
+        btn.textContent='▶️ 开始测试'; btn.className='mode-btn';
+        if (state.breakLog.length>0) {
+            banner.style.display='block';
+            toast("复盘模式：红色标记为最先断裂处");
+        }
+    }
+};
+
+// ===== 其他工具 =====
+window.setMat = (idx) => {
+    state.matIdx=idx;
+    document.querySelectorAll('.mat-card').forEach((el,i)=>
+        el.className=i===idx?'mat-card active':'mat-card');
+};
+
+window.setEnv = (key, val) => {
+    state.env[key]=parseInt(val);
+    let suffix = key==='load'?'kg':'级';
+    document.getElementById('disp-'+key).innerText=val+suffix;
+};
+
+window.toggleDel = () => {
+    state.deleting=!state.deleting;
+    let btn=document.getElementById('btn-del');
+    btn.textContent=state.deleting?'✂️ 删除模式：开启':'✂️ 删除模式：关闭';
+    btn.className=state.deleting?'active':'';
+};
+
+window.clearAll = () => {
+    if (state.simulating) return;
+    if (!confirm('确定清空所有设计？')) return;
+    state.nodes=[]; state.sticks=[]; fragments=[]; state.breakLog=[];
+    document.getElementById('replay-banner').style.display='none';
+    init();
+    toast("已清空");
+};
+
+// ===== 自动连接交叉点（完整算法）=====
+window.autoConnect = () => {
+    if (state.simulating) return toast("测试中不能使用");
+    if (state.sticks.length<2) return toast("至少需要两根杆件");
+    saveHistory();
+    const EPS=1e-4, EP_GUARD=0.02, MERGE_TOL=Math.max(2,PHYSICS.snap*0.25);
+    const clusters=[], splitMap=new Map();
+
+    function ptLineDist(px,py,ax,ay,bx,by) {
+        let vx=bx-ax,vy=by-ay,l2=vx*vx+vy*vy;
+        if(l2<EPS) return Math.hypot(px-ax,py-ay);
+        let t=Math.max(0,Math.min(1,((px-ax)*vx+(py-ay)*vy)/l2));
+        return Math.hypot(px-(ax+t*vx),py-(ay+t*vy));
+    }
+    function findNearNode(ix,iy,s1,s2) {
+        let best=null,bd=PHYSICS.snap;
+        for(let p of state.nodes) {
+            let d=Math.hypot(p.x-ix,p.y-iy); if(d>=bd) continue;
+            if(ptLineDist(p.x,p.y,s1.n1.x,s1.n1.y,s1.n2.x,s1.n2.y)>MERGE_TOL) continue;
+            if(ptLineDist(p.x,p.y,s2.n1.x,s2.n1.y,s2.n2.x,s2.n2.y)>MERGE_TOL) continue;
+            best=p;bd=d;
+        }
+        return best;
+    }
+    function findOrMakeCluster(x,y,existing) {
+        for(let c of clusters) {
+            if(Math.hypot(c.x-x,c.y-y)<=MERGE_TOL) {
+                if(!c.existing&&existing) c.existing=existing;
+                if(c.existing){c.x=c.existing.x;c.y=c.existing.y;}
+                return c;
             }
         }
+        let c={x:existing?existing.x:x,y:existing?existing.y:y,existing,node:null};
+        clusters.push(c); return c;
+    }
+    function regSplit(s,t,c) {
+        if(t<=EP_GUARD||t>=1-EP_GUARD) return;
+        if(!splitMap.has(s)) splitMap.set(s,[]);
+        splitMap.get(s).push({t,c});
+    }
 
-        // --- Stick 类 ---
-        class Stick {
-            constructor(p1, p2, matId, uid = null) {
-                this.p1 = p1;
-                this.p2 = p2;
-                this.mat = MATERIALS[matId];
-                this.len = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                this.stress = 0;
-                this.broken = false;
-                this.simId = uid !== null ? uid : getUniqueId();
+    for(let i=0;i<state.sticks.length;i++) for(let j=i+1;j<state.sticks.length;j++) {
+        let s1=state.sticks[i],s2=state.sticks[j];
+        if(s1.n1===s2.n1||s1.n1===s2.n2||s1.n2===s2.n1||s1.n2===s2.n2) continue;
+        let denom=(s2.n2.y-s2.n1.y)*(s1.n2.x-s1.n1.x)-(s2.n2.x-s2.n1.x)*(s1.n2.y-s1.n1.y);
+        if(Math.abs(denom)<EPS) continue;
+        let ua=((s2.n2.x-s2.n1.x)*(s1.n1.y-s2.n1.y)-(s2.n2.y-s2.n1.y)*(s1.n1.x-s2.n1.x))/denom;
+        let ub=((s1.n2.x-s1.n1.x)*(s1.n1.y-s2.n1.y)-(s1.n2.y-s1.n1.y)*(s1.n1.x-s2.n1.x))/denom;
+        if(ua<=EP_GUARD||ua>=1-EP_GUARD||ub<=EP_GUARD||ub>=1-EP_GUARD) continue;
+        let ix=s1.n1.x+ua*(s1.n2.x-s1.n1.x), iy=s1.n1.y+ua*(s1.n2.y-s1.n1.y);
+        let near=findNearNode(ix,iy,s1,s2);
+        let cl=findOrMakeCluster(ix,iy,near);
+        regSplit(s1,ua,cl); regSplit(s2,ub,cl);
+    }
 
-                // 复盘属性
-                this.wasBroken = false;
-                this.breakOrder = 0;
-            }
-
-            update() {
-                if (this.broken) return;
-
-                if (!isSimulating) {
-                    this.len = Math.hypot(this.p1.x - this.p2.x, this.p1.y - this.p2.y);
-                    return;
-                }
-
-                let dx = this.p2.x - this.p1.x;
-                let dy = this.p2.y - this.p1.y;
-                let dist = Math.hypot(dx, dy);
-                if (dist === 0) return;
-
-                this.stress = Math.abs(dist - this.len);
-
-                if (preheatRemaining <= 0) {
-                    // 杆件强度断裂
-                    if (this.stress > this.mat.strength) {
-                        this.broken = true;
-                    }
-                    // 节点强度断裂 (拉力破坏) - 标记节点为broken，在loop中统一处理
-                    if (this.stress > Math.min(this.p1.mat.nodeStrength, this.p2.mat.nodeStrength)) {
-                        if (this.p1.mat.nodeStrength < this.stress && !this.p1.pinned) this.p1.broken = true;
-                        if (this.p2.mat.nodeStrength < this.stress && !this.p2.pinned) this.p2.broken = true;
-                    }
-                }
-
-                const w1 = this.p1.pinned ? 0 : 1 / getPointMass(this.p1);
-                const w2 = this.p2.pinned ? 0 : 1 / getPointMass(this.p2);
-                const totalW = w1 + w2;
-                if (totalW <= 0) return;
-
-                const correctionRatio = (dist - this.len) / dist;
-                const corrX = dx * correctionRatio;
-                const corrY = dy * correctionRatio;
-
-                if (!this.p1.pinned) {
-                    const share = w1 / totalW;
-                    this.p1.x += corrX * share;
-                    this.p1.y += corrY * share;
-                }
-                if (!this.p2.pinned) {
-                    const share = w2 / totalW;
-                    this.p2.x -= corrX * share;
-                    this.p2.y -= corrY * share;
-                }
-            }
-
-            draw() {
-                if (isSimulating && this.broken) return; // 模拟中断裂不绘制
-
-                ctx.beginPath();
-                
-                // 复盘模式：如果是最先断的3个，高亮显示
-                if (!isSimulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= 3) {
-                    ctx.strokeStyle = '#e74c3c'; // 红
-                    ctx.lineWidth = 6;
-                    ctx.moveTo(this.p1.x, this.p1.y);
-                    ctx.lineTo(this.p2.x, this.p2.y);
-                    ctx.stroke();
-                    // 覆盖一层原色
-                    ctx.strokeStyle = this.mat.color;
-                    ctx.lineWidth = 2;
-                    ctx.moveTo(this.p1.x, this.p1.y);
-                    ctx.lineTo(this.p2.x, this.p2.y);
-                    ctx.stroke();
-                    return;
-                }
-
-                // 正常绘制
-                let color = this.mat.color;
-                if (isSimulating) {
-                    let ratio = Math.min(this.stress / (this.mat.strength * 0.8), 1);
-                    if (ratio > 0.5) {
-                        ctx.strokeStyle = `rgb(255, ${200 * (1-ratio)}, 0)`;
-                    } else {
-                        ctx.strokeStyle = color;
-                    }
-                } else {
-                    ctx.strokeStyle = color;
-                }
-
-                ctx.lineWidth = 4;
-                ctx.lineCap = 'round';
-                ctx.moveTo(this.p1.x, this.p1.y);
-                ctx.lineTo(this.p2.x, this.p2.y);
-                ctx.stroke();
-            }
+    let newNodes=0,procSticks=0;
+    clusters.forEach(c=>{
+        c.node=c.existing||addNode(c.x,c.y,false,state.matIdx);
+        if(!c.existing) newNodes++;
+    });
+    for(let [stick,splits] of splitMap.entries()) {
+        if(!splits.length) continue;
+        splits.sort((a,b)=>a.t-b.t);
+        let deduped=[]; for(let s of splits){
+            let last=deduped[deduped.length-1];
+            if(last&&Math.abs(last.t-s.t)<EP_GUARD) continue; deduped.push(s);
         }
+        if(!deduped.length) continue;
+        let idx=state.sticks.indexOf(stick); if(idx===-1) continue;
+        state.sticks.splice(idx,1);
+        let chain=[stick.n1,...deduped.map(s=>s.c.node),stick.n2];
+        for(let i=0;i<chain.length-1;i++) {
+            let a=chain[i],b=chain[i+1];
+            if(a===b||Math.hypot(a.x-b.x,a.y-b.y)<0.5) continue;
+            state.sticks.push(new Stick(a,b,stick.matIdx));
+        }
+        procSticks++;
+    }
+    if(newNodes>0||procSticks>0) toast(`连接完成：${procSticks}根杆，${newNodes}个节点`);
+    else toast("未发现交叉点");
+    saveHistory();
+};
 
-        function init() {
-            resize();
-            window.addEventListener('resize', resize);
-            addPoint(width/2 - 60, groundY, true, 'wood');
-            addPoint(width/2 + 60, groundY, true, 'wood');
+// ===== 统计更新 =====
+function updateStats() {
+    let maxH=0;
+    state.nodes.forEach(n=>{ if(!n.broken) maxH=Math.max(maxH,PHYSICS.groundY-n.y); });
+    document.getElementById('height-indicator').textContent=`🏔️ 最高点：${Math.round(maxH/PHYSICS.scale*10)} cm`;
+
+    if (state.statsLocked) {
+        // 模拟中只更新应力
+        let maxS=0;
+        state.sticks.forEach(s=>{ if(!s.broken) maxS=Math.max(maxS,Math.abs(s.stress)); });
+        document.getElementById('max-stress').textContent=(maxS*100).toFixed(1)+'%';
+        return;
+    }
+
+    document.getElementById('count-node').textContent=state.nodes.length;
+    let lW=0,lS=0,lC=0;
+    state.sticks.forEach(s=>{
+        let l=s.len/PHYSICS.scale;
+        if(s.matIdx===0) lW+=l;
+        else if(s.matIdx===1) lS+=l;
+        else lC+=l;
+    });
+    document.getElementById('stat-len-wood').textContent=Math.round(lW)+' cm';
+    document.getElementById('stat-len-steel').textContent=Math.round(lS)+' cm';
+    document.getElementById('stat-len-carbon').textContent=Math.round(lC)+' cm';
+    document.getElementById('stat-total-len').textContent=Math.round(lW+lS+lC)+' cm';
+    let cost=state.nodes.length*50+lW*2+lS*8+lC*20;
+    document.getElementById('cost-total').textContent=Math.round(cost);
+
+    let maxS=0;
+    state.sticks.forEach(s=>{ if(!s.broken) maxS=Math.max(maxS,Math.abs(s.stress)); });
+    document.getElementById('max-stress').textContent=(maxS*100).toFixed(1)+'%';
+}
+
+// ===== 网格 =====
+function drawGrid() {
+    ctx.strokeStyle='rgba(0,0,0,0.05)'; ctx.lineWidth=1;
+    for(let x=0;x<canvas.width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+    for(let y=canvas.height;y>0;y-=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+}
+
+// ===== 工具函数 =====
+function getProjectedPoint(p,v,w) {
+    let l2=(v.x-w.x)**2+(v.y-w.y)**2;
+    if(l2===0) return {x:v.x,y:v.y};
+    let t=Math.max(0,Math.min(1,((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2));
+    return{x:v.x+t*(w.x-v.x),y:v.y+t*(w.y-v.y)};
+}
+function ptSegDist(p,a,b) {
+    let proj=getProjectedPoint(p,a,b);
+    return Math.hypot(p.x-proj.x,p.y-proj.y);
+}
+function getHoverNode(x,y) {
+    let best=null,bd=PHYSICS.snap;
+    for(let n of state.nodes){let d=Math.hypot(n.x-x,n.y-y);if(d<bd){bd=d;best=n;}}
+    return best;
+}
+function getNearestStick(p) {
+    let best=null,bd=12;
+    for(let s of state.sticks){let d=ptSegDist(p,s.n1,s.n2);if(d<bd){bd=d;best=s;}}
+    return best;
+}
+
+function toast(msg) {
+    let t=document.getElementById('toast');
+    t.textContent=msg; t.style.opacity=1;
+    setTimeout(()=>t.style.opacity=0,2000);
+}
+
+// ===== 鼠标事件 =====
+canvas.addEventListener('mousemove', e => {
+    let r=canvas.getBoundingClientRect();
+    state.mouse={x:e.clientX-r.left,y:e.clientY-r.top};
+    state.hoverNode=getHoverNode(state.mouse.x,state.mouse.y);
+    state.hoverStick=!state.hoverNode?getNearestStick(state.mouse):null;
+    if (state.deleting) canvas.style.cursor='cell';
+    else if (state.hoverNode||state.hoverStick) canvas.style.cursor='pointer';
+    else if (state.mouse.y>=PHYSICS.groundY-15) canvas.style.cursor='cell';
+    else canvas.style.cursor='crosshair';
+});
+
+canvas.addEventListener('mousedown', e => {
+    if (e.button===2) {
+        // 右键删除
+        if (state.simulating) return;
+        if (state.hoverNode) {
+            let pinnedCount = state.nodes.filter(n=>n.pinned).length;
+            if (state.hoverNode.pinned && pinnedCount <= 2) return toast("至少保留2个地基节点");
             saveHistory();
-            loop();
+            state.sticks=state.sticks.filter(s=>s.n1!==state.hoverNode&&s.n2!==state.hoverNode);
+            state.nodes=state.nodes.filter(n=>n!==state.hoverNode);
+            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
+            toast("删除节点");
         }
-
-        function resize() {
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-            groundY = height - CONFIG.groundHeight;
-            points.forEach(p => { if(p.pinned) p.y = groundY; });
-        }
-
-        function addPoint(x, y, pinned, matId, uid = null) {
-            let p = new Point(x, y, pinned, matId, uid);
-            points.push(p);
-            return p;
-        }
-
-        function saveHistory() {
-            let snapshot = {
-                points: points.map(p => ({
-                    x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id, uid: p.simId
-                })),
-                sticks: sticks.map(s => {
-                    let p1Idx = points.indexOf(s.p1);
-                    let p2Idx = points.indexOf(s.p2);
-                    return { p1Idx, p2Idx, matId: s.mat.id, uid: s.simId };
-                })
-            };
-            historyStack.push(snapshot);
-            if (historyStack.length > MAX_HISTORY) historyStack.shift();
-        }
-
-        function restoreFromHistory(snapshot) {
-            points = snapshot.points.map(p => new Point(p.x, p.y, p.pinned, p.matId, p.uid));
-            sticks = snapshot.sticks.map(s => {
-                let p1 = points[s.p1Idx];
-                let p2 = points[s.p2Idx];
-                return new Stick(p1, p2, s.matId, s.uid);
-            });
-            angleConstraints = [];
-        }
-
-        function undo() {
-            if (isSimulating) { showToast("测试中不能撤销"); return; }
-            if (historyStack.length <= 1) { showToast("没有更多步骤"); return; }
-            historyStack.pop();
-            let prev = historyStack[historyStack.length-1];
-            restoreFromHistory(prev);
-            showToast("撤销成功");
-        }
-
-        function toggleDeleteMode() {
-            if (isSimulating) { showToast("测试中不能删除"); return; }
-            deleteMode = !deleteMode;
-            document.getElementById('delete-mode-toggle').innerText = deleteMode ? '✂️ 删除模式 (开启)' : '✂️ 删除模式 (关闭)';
-            document.getElementById('delete-mode-toggle').classList.toggle('active', deleteMode);
-        }
-
-        function deletePoint(point) {
-            let idx = points.indexOf(point);
-            if (idx === -1) return;
-            sticks = sticks.filter(s => s.p1 !== point && s.p2 !== point);
-            points.splice(idx, 1);
-        }
-
-        function deleteStick(stick) {
-            let idx = sticks.indexOf(stick);
-            if (idx !== -1) sticks.splice(idx, 1);
-        }
-
-        // --- 自动连接与角度约束 ---
-        function autoConnectIntersections() {
-            if (isSimulating) { showToast("测试中不能使用此功能"); return; }
-            if (sticks.length < 2) { showToast("至少需要两根杆件"); return; }
+        return;
+    }
+    if (state.simulating) return toast("测试中无法修改");
+    if (state.deleting) {
+        if (state.hoverNode) {
+            let pinnedCount = state.nodes.filter(n=>n.pinned).length;
+            if (state.hoverNode.pinned && pinnedCount <= 2) return toast("至少保留2个地基节点");
             saveHistory();
-
-            const EPS = 1e-4; const ENDPOINT_GUARD = 0.02; const MERGE_TOL = Math.max(2, CONFIG.snapDist * 0.25);
-            const clusters = []; const splitMap = new Map();
-
-            function pointLineDistance(px, py, ax, ay, bx, by) {
-                const vx = bx - ax; const vy = by - ay;
-                const len2 = vx * vx + vy * vy;
-                if (len2 < EPS) return Math.hypot(px - ax, py - ay);
-                const t = ((px - ax) * vx + (py - ay) * vy) / len2;
-                const clamped = Math.max(0, Math.min(1, t));
-                return Math.hypot(px - (ax + clamped * vx), py - (ay + clamped * vy));
-            }
-
-            function findNearbyNode(ix, iy, s1, s2) {
-                let nearest = null, bestDist = CONFIG.snapDist;
-                for (let p of points) {
-                    const d = Math.hypot(p.x - ix, p.y - iy);
-                    if (d >= bestDist) continue;
-                    if (pointLineDistance(p.x, p.y, s1.p1.x, s1.p1.y, s1.p2.x, s1.p2.y) > MERGE_TOL) continue;
-                    if (pointLineDistance(p.x, p.y, s2.p1.x, s2.p1.y, s2.p2.x, s2.p2.y) > MERGE_TOL) continue;
-                    nearest = p; bestDist = d;
-                }
-                return nearest;
-            }
-
-            function findOrCreateCluster(x, y, existingNode) {
-                for (let c of clusters) {
-                    if (Math.hypot(c.x - x, c.y - y) <= MERGE_TOL) {
-                        if (!c.existingNode && existingNode) c.existingNode = existingNode;
-                        if (c.existingNode) { c.x = c.existingNode.x; c.y = c.existingNode.y; }
-                        return c;
-                    }
-                }
-                const cluster = { x: existingNode ? existingNode.x : x, y: existingNode ? existingNode.y : y, existingNode, node: null };
-                clusters.push(cluster);
-                return cluster;
-            }
-
-            function registerSplit(stick, t, cluster) {
-                if (t <= ENDPOINT_GUARD || t >= 1 - ENDPOINT_GUARD) return;
-                if (!splitMap.has(stick)) splitMap.set(stick, []);
-                splitMap.get(stick).push({ t, cluster });
-            }
-
-            for (let i = 0; i < sticks.length; i++) {
-                for (let j = i + 1; j < sticks.length; j++) {
-                    const s1 = sticks[i], s2 = sticks[j];
-                    if (s1.p1 === s2.p1 || s1.p1 === s2.p2 || s1.p2 === s2.p1 || s1.p2 === s2.p2) continue;
-                    const denom = (s2.p2.y - s2.p1.y) * (s1.p2.x - s1.p1.x) - (s2.p2.x - s2.p1.x) * (s1.p2.y - s1.p1.y);
-                    if (Math.abs(denom) < EPS) continue;
-                    const ua = ((s2.p2.x - s2.p1.x) * (s1.p1.y - s2.p1.y) - (s2.p2.y - s2.p1.y) * (s1.p1.x - s2.p1.x)) / denom;
-                    const ub = ((s1.p2.x - s1.p1.x) * (s1.p1.y - s2.p1.y) - (s1.p2.y - s1.p1.y) * (s1.p1.x - s2.p1.x)) / denom;
-                    if (ua <= ENDPOINT_GUARD || ua >= 1 - ENDPOINT_GUARD || ub <= ENDPOINT_GUARD || ub >= 1 - ENDPOINT_GUARD) continue;
-                    const ix = s1.p1.x + ua * (s1.p2.x - s1.p1.x);
-                    const iy = s1.p1.y + ua * (s1.p2.y - s1.p1.y);
-                    const nearbyNode = findNearbyNode(ix, iy, s1, s2);
-                    const cluster = findOrCreateCluster(ix, iy, nearbyNode);
-                    registerSplit(s1, ua, cluster);
-                    registerSplit(s2, ub, cluster);
-                }
-            }
-
-            let newNodesCount = 0, processedSticks = 0;
-            for (let cluster of clusters) {
-                cluster.node = cluster.existingNode || addPoint(cluster.x, cluster.y, false, currentMat);
-                if (!cluster.existingNode) newNodesCount++;
-            }
-
-            for (let [stick, splits] of splitMap.entries()) {
-                if (!splits.length) continue;
-                const deduped = [];
-                splits.sort((a, b) => a.t - b.t);
-                for (let s of splits) {
-                    const last = deduped[deduped.length - 1];
-                    if (last && Math.abs(last.t - s.t) < ENDPOINT_GUARD) continue;
-                    deduped.push(s);
-                }
-                if (!deduped.length) continue;
-                const idx = sticks.indexOf(stick);
-                if (idx === -1) continue;
-                sticks.splice(idx, 1);
-                let chain = [stick.p1, ...deduped.map(s => s.cluster.node), stick.p2];
-                for (let i = 0; i < chain.length - 1; i++) {
-                    const a = chain[i], b = chain[i + 1];
-                    if (a === b || Math.hypot(a.x - b.x, a.y - b.y) < 0.5) continue;
-                    sticks.push(new Stick(a, b, stick.mat.id));
-                }
-                processedSticks++;
-            }
-
-            if (newNodesCount > 0 || processedSticks > 0) showToast(`连接完成：${processedSticks} 杆件，${newNodesCount} 节点`);
-            else showToast("未发现交叉点");
+            state.sticks=state.sticks.filter(s=>s.n1!==state.hoverNode&&s.n2!==state.hoverNode);
+            state.nodes=state.nodes.filter(n=>n!==state.hoverNode);
+            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
+            toast("删除节点");
+        } else if (state.hoverStick) {
+            saveHistory();
+            state.sticks=state.sticks.filter(s=>s!==state.hoverStick);
+            // 清理因删杆而产生的孤立节点
+            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
+            toast("删除杆件");
         }
+        return;
+    }
+    if (state.hoverNode) {
+        state.dragging=true; state.dragStart=state.hoverNode;
+    } else if (state.hoverStick) {
+        saveHistory();
+        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
+        let newN=addNode(proj.x,proj.y,false);
+        let old=state.hoverStick;
+        state.sticks=state.sticks.filter(s=>s!==old);
+        state.sticks.push(new Stick(old.n1,newN,old.matIdx));
+        state.sticks.push(new Stick(newN,old.n2,old.matIdx));
+        state.dragging=true; state.dragStart=newN;
+    } else if (state.mouse.y>PHYSICS.groundY-20) {
+        let n=addNode(state.mouse.x,PHYSICS.groundY,true);
+        state.dragging=true; state.dragStart=n;
+    }
+});
 
-        function buildAngleConstraints() {
-            angleConstraints = [];
-            for (let node of points) {
-                let neighbors = [];
-                for (let s of sticks) {
-                    let other = null;
-                    if (s.p1 === node) other = s.p2;
-                    else if (s.p2 === node) other = s.p1;
-                    if (!other) continue;
-                    let dx = other.x - node.x, dy = other.y - node.y;
-                    let len = Math.hypot(dx, dy);
-                    if (len < 0.01) continue;
-                    neighbors.push({ point: other, initDirX: dx/len, initDirY: dy/len });
-                }
-                if (neighbors.length >= 2) angleConstraints.push({ node, neighbors });
-            }
+canvas.addEventListener('mouseup', e => {
+    if (!state.dragging) return;
+    let endNode=state.hoverNode;
+    if (!endNode&&state.hoverStick) {
+        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
+        endNode=addNode(proj.x,proj.y,false);
+        let old=state.hoverStick;
+        state.sticks=state.sticks.filter(s=>s!==old);
+        state.sticks.push(new Stick(old.n1,endNode,old.matIdx));
+        state.sticks.push(new Stick(endNode,old.n2,old.matIdx));
+    }
+    if (!endNode) {
+        let mx=state.mouse.x, my=state.mouse.y;
+        if (my>PHYSICS.groundY-5) my=PHYSICS.groundY;
+        endNode=addNode(mx,my,my>=PHYSICS.groundY);
+    }
+    if (state.dragStart!==endNode) {
+        let exists=state.sticks.some(s=>(s.n1===state.dragStart&&s.n2===endNode)||(s.n1===endNode&&s.n2===state.dragStart));
+        if (!exists) {
+            saveHistory();
+            state.sticks.push(new Stick(state.dragStart, endNode, state.matIdx));
         }
+    }
+    state.dragging=false; state.dragStart=null;
+});
 
-        function applyAngleConstraints(iterations) {
-            let stiffness = CONFIG.angleStiffness;
-            for (let iter = 0; iter < iterations; iter++) {
-                for (let c of angleConstraints) {
-                    let node = c.node;
-                    if (node.broken) continue;
-                    for (let nb of c.neighbors) {
-                        let p = nb.point;
-                        if (p.broken) continue;
-                        if (node.pinned && p.pinned) continue;
-                        let dx = p.x - node.x, dy = p.y - node.y;
-                        let dist = Math.hypot(dx, dy);
-                        if (dist < 0.01) continue;
-                        let targetX = node.x + nb.initDirX * dist;
-                        let targetY = node.y + nb.initDirY * dist;
-                        let moveX = (targetX - p.x) * stiffness;
-                        let moveY = (targetY - p.y) * stiffness;
-                        if (!node.pinned && !p.pinned) {
-                            p.x += moveX; p.y += moveY; node.x -= moveX; node.y -= moveY;
-                        } else if (!p.pinned) {
-                            p.x += moveX; p.y += moveY;
-                        } else if (!node.pinned) {
-                            node.x -= moveX; node.y -= moveY;
-                        }
-                    }
-                }
-            }
-        }
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
-        function checkAngleBreaks() {
-            for (let c of angleConstraints) {
-                let node = c.node;
-                if (node.broken) continue;
-                let maxAngleDiff = 0;
-                let neighbors = c.neighbors;
-                let activeNeighbors = neighbors.filter(n => !n.point.broken && sticks.some(s => (s.p1===node && s.p2===n.point) || (s.p1===n.point && s.p2===node)));
-                
-                for (let i = 0; i < activeNeighbors.length; i++) {
-                    for (let j = i+1; j < activeNeighbors.length; j++) {
-                        let a = activeNeighbors[i], b = activeNeighbors[j];
-                        let ax = a.point.x - node.x, ay = a.point.y - node.y;
-                        let bx = b.point.x - node.x, by = b.point.y - node.y;
-                        let curAngle = Math.atan2(ax*by - ay*bx, ax*bx + ay*by);
-                        let initAngle = Math.atan2(a.initDirX*b.initDirY - a.initDirY*b.initDirX, a.initDirX*b.initDirX + a.initDirY*b.initDirY);
-                        let diff = Math.abs(curAngle - initAngle);
-                        if (diff > Math.PI) diff = 2*Math.PI - diff;
-                        if (diff > maxAngleDiff) maxAngleDiff = diff;
-                    }
-                }
-                if (maxAngleDiff > node.mat.angleStrength) {
-                    node.broken = true; 
-                }
-            }
-        }
-
-        function getTopCluster() {
-            const active = points.filter(p => !p.broken);
-            if (!active.length) return null;
-            const topY = active.reduce((m, p) => Math.min(m, p.y), active[0].y);
-            const band = active.filter(p => p.y <= topY + 30);
-            if (!band.length) return null;
-            const centerX = band.reduce((sum, p) => sum + p.x, 0) / band.length;
-            return { topY, centerX };
-        }
-
-        function drawLoadVisual() {
-            if (!isSimulating || env.load <= 0) return;
-            const top = getTopCluster();
-            if (!top) return;
-            const plateW = Math.max(120, Math.min(280, 110 + env.load * 1.4));
-            const plateH = 16;
-            const plateX = top.centerX - plateW / 2;
-            const plateY = Math.max(30, top.topY - 26);
-            const blockW = Math.max(90, plateW * 0.65);
-            const blockH = 24 + env.load * 0.7;
-            const blockX = top.centerX - blockW / 2;
-            const blockY = plateY - blockH - 18;
-
-            ctx.fillStyle = 'rgba(52, 73, 94, 0.95)'; ctx.fillRect(blockX, blockY, blockW, blockH);
-            ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'center';
-            ctx.fillText(`${env.load}kg`, top.centerX, blockY + blockH / 2 + 5);
-            ctx.strokeStyle = 'rgba(60, 60, 60, 0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(top.centerX, blockY + blockH); ctx.lineTo(top.centerX, plateY); ctx.stroke();
-            ctx.fillStyle = 'rgba(127, 140, 141, 0.95)'; ctx.fillRect(plateX, plateY, plateW, plateH); ctx.strokeRect(plateX, plateY, plateW, plateH);
-        }
-
-        function loop() {
-            let iter = isSimulating ? 5 : 1;
-
-            if (preheatRemaining > 0) {
-                let steps = Math.min(5, preheatRemaining);
-                for (let s = 0; s < steps; s++) {
-                    for (let k = 0; k < iter; k++) {
-                        if (isSimulating) refreshPointMasses();
-                        points.forEach(p => p.update());
-                        sticks.forEach(s => s.update());
-                        if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
-                    }
-                    preheatRemaining--;
-                }
-            } else {
-                for (let k = 0; k < iter; k++) {
-                    if (isSimulating) refreshPointMasses();
-                    points.forEach(p => p.update());
-                    sticks.forEach(s => s.update());
-                    if (isSimulating && angleConstraints.length > 0) applyAngleConstraints(1);
-                }
-                if (isSimulating && angleConstraints.length > 0) {
-                    applyAngleConstraints(CONFIG.angleIterations);
-                    checkAngleBreaks();
-                }
-            }
-
-            // === 物理引擎核心修改：断裂清理与自由落体 ===
-            if (isSimulating) {
-                let somethingBroke = false;
-
-                // 1. 记录并生成杆件断裂特效
-                sticks.forEach(s => {
-                    if (s.broken) {
-                        // 仅记录因应力断裂的，不记录被动删除的
-                        if(!breakLog.find(l => l.type === 'stick' && l.simId === s.simId)) {
-                             breakLog.push({ type: 'stick', simId: s.simId, order: nextBreakOrder++ });
-                             createExplosion((s.p1.x + s.p2.x)/2, (s.p1.y + s.p2.y)/2, s.mat.color);
-                             somethingBroke = true;
-                        }
-                    }
-                });
-
-                // 2. 记录并生成节点断裂特效
-                points.forEach(p => {
-                    if (p.broken) {
-                        if(!breakLog.find(l => l.type === 'point' && l.simId === p.simId)) {
-                            breakLog.push({ type: 'point', simId: p.simId, order: nextBreakOrder++ });
-                            createExplosion(p.x, p.y, p.mat.color);
-                            somethingBroke = true;
-                        }
-                    }
-                });
-
-                // 3. 执行删除（过滤列表）
-                // 先过滤掉已经明确断掉的杆
-                let activeSticks = sticks.filter(s => !s.broken);
-                
-                // 再过滤掉已经明确断掉的点
-                let activePoints = points.filter(p => !p.broken);
-
-                // 4. 核心逻辑：孤立节点检测（两侧杆都断裂的情况）
-                // 遍历所有存活的节点，检查它还有多少根杆连着
-                let pointsToDelete = [];
-                activePoints.forEach(p => {
-                    if (p.pinned) return; // 地基永远不删
-                    let connectedCount = activeSticks.filter(s => s.p1 === p || s.p2 === p).length;
-                    if (connectedCount === 0) {
-                        pointsToDelete.push(p);
-                        createExplosion(p.x, p.y, p.mat.color);
-                        // 这种情况属于被动清理，通常不算作结构性破坏的"First Break"，但为了视觉连贯，也可以不记录进Log，或者记录
-                        // 这里选择不记录进 breakLog (因为它不是受力破坏，而是变成了垃圾)，防止抢占“前三个断裂”的名额
-                    }
-                });
-
-                // 从activePoints中移除孤立节点
-                if (pointsToDelete.length > 0) {
-                    activePoints = activePoints.filter(p => !pointsToDelete.includes(p));
-                }
-
-                // 5. 反向清理：如果有节点被删除了（无论是受力断裂还是孤立删除），连在它上面的杆也必须删
-                activeSticks = activeSticks.filter(s => activePoints.includes(s.p1) && activePoints.includes(s.p2));
-
-                // 6. 更新全局列表
-                points = activePoints;
-                sticks = activeSticks;
-            }
-
-            // 更新碎片
-            fragments.forEach(f => f.update());
-            fragments = fragments.filter(f => f.life > 0);
-
-            ctx.clearRect(0, 0, width, height);
-            drawGrid();
-
-            ctx.fillStyle = "#95a5a6";
-            ctx.fillRect(0, groundY, width, CONFIG.groundHeight);
-
-            drawLoadVisual();
-            sticks.forEach(s => s.draw());
-            
-            points.forEach(p => {
-                if (isSimulating && p.broken) return;
-
-                // 复盘高亮绘制
-                if (!isSimulating && p.wasBroken && p.breakOrder > 0 && p.breakOrder <= 3) {
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
-                    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-                    ctx.fillStyle = p.mat.color; ctx.fill();
-                    return;
-                }
-
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.pinned ? 8 : 5, 0, Math.PI*2);
-                ctx.fillStyle = p.pinned ? "#34495e" : p.mat.color;
-                ctx.fill();
-                ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1; ctx.stroke();
-            });
-
-            fragments.forEach(f => f.draw(ctx));
-
-            if (deleteMode && !isSimulating) {
-                hoveredStick = null;
-                let stickDist = 10;
-                for (let s of sticks) {
-                    let d = distanceToSegment(mouse, s.p1, s.p2);
-                    if (d < stickDist) { stickDist = d; hoveredStick = s; }
-                }
-                if (hoveredStick) {
-                    ctx.beginPath();
-                    ctx.moveTo(hoveredStick.p1.x, hoveredStick.p1.y);
-                    ctx.lineTo(hoveredStick.p2.x, hoveredStick.p2.y);
-                    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 8; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-                }
-            }
-
-            if (!isSimulating) drawInteraction();
-            updateStats();
-            requestAnimationFrame(loop);
-        }
-
-        function distanceToSegment(p, a, b) {
-            let abx = b.x - a.x, aby = b.y - a.y;
-            let apx = p.x - a.x, apy = p.y - a.y;
-            let ab2 = abx*abx + aby*aby;
-            if (ab2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-            let t = (apx*abx + apy*aby) / ab2;
-            t = Math.max(0, Math.min(1, t));
-            return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t));
-        }
-
-        function drawGrid() {
-            ctx.strokeStyle = "rgba(0,0,0,0.06)";
-            ctx.lineWidth = 1;
-            for(let x=0; x<width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); }
-            for(let y=height; y>0; y-=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke(); }
-        }
-
-        function drawInteraction() {
-            hoveredPoint = null;
-            let minDist = CONFIG.snapDist;
-            for (let p of points) {
-                let d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
-                if (d < minDist) { minDist = d; hoveredPoint = p; }
-            }
-
-            if (deleteMode) {
-                canvas.style.cursor = "cell";
-                if (hoveredPoint) {
-                    ctx.beginPath(); ctx.arc(hoveredPoint.x, hoveredPoint.y, 12, 0, Math.PI*2);
-                    ctx.strokeStyle = "#e74c3c"; ctx.lineWidth = 3; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
-                }
-            } else {
-                if (hoveredPoint) {
-                    ctx.beginPath(); ctx.arc(hoveredPoint.x, hoveredPoint.y, 12, 0, Math.PI*2);
-                    ctx.strokeStyle = MATERIALS[currentMat].color; 
-                    ctx.lineWidth = 2; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]);
-                    canvas.style.cursor = "pointer";
-                } else if (mouse.y >= groundY - 10) {
-                    canvas.style.cursor = "cell";
-                } else {
-                    canvas.style.cursor = "default";
-                }
-            }
-
-            if (isDragging && dragStart && !deleteMode) {
-                let targetX = hoveredPoint ? hoveredPoint.x : mouse.x;
-                let targetY = hoveredPoint ? hoveredPoint.y : mouse.y;
-                let dx = targetX - dragStart.x, dy = targetY - dragStart.y;
-                let dist = Math.hypot(dx, dy);
-                let segments = Math.ceil(dist / CONFIG.maxStickLen);
-
-                ctx.beginPath(); ctx.moveTo(dragStart.x, dragStart.y); ctx.lineTo(targetX, targetY);
-                ctx.strokeStyle = MATERIALS[currentMat].color; ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-                if (segments > 1) {
-                    ctx.fillStyle = "#e67e22"; ctx.font = "12px Arial";
-                    ctx.fillText(`${segments}段连接`, mouse.x + 10, mouse.y);
-                }
-            }
-        }
-
-        canvas.addEventListener('mousemove', e => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
-        });
-
-        canvas.addEventListener('mousedown', e => {
-            if (isSimulating) { showToast("⚠️ 测试中无法修改，请先停止！"); return; }
-            if (e.button === 2) return;
-            if (deleteMode) {
-                if (hoveredPoint) { saveHistory(); deletePoint(hoveredPoint); showToast("删除节点"); }
-                else if (hoveredStick) { saveHistory(); deleteStick(hoveredStick); showToast("删除杆件"); }
-                return;
-            }
-            if (hoveredPoint) { dragStart = hoveredPoint; isDragging = true; }
-            else if (mouse.y > groundY - 15) { let p = addPoint(mouse.x, groundY, true, currentMat); dragStart = p; isDragging = true; }
-        });
-
-        canvas.addEventListener('mouseup', e => {
-            if (isSimulating || deleteMode) return;
-            if (!isDragging || !dragStart) return;
-            let endP = hoveredPoint;
-            let finalX = endP ? endP.x : mouse.x;
-            let finalY = endP ? endP.y : mouse.y;
-            if (!endP && finalY > groundY) finalY = groundY;
-            let dx = finalX - dragStart.x, dy = finalY - dragStart.y;
-            let dist = Math.hypot(dx, dy);
-
-            if (dist > 5) {
-                saveHistory();
-                let segments = Math.ceil(dist / CONFIG.maxStickLen);
-                let currentStart = dragStart;
-                for (let i = 1; i <= segments; i++) {
-                    let isLast = (i === segments);
-                    let nextP;
-                    if (isLast && endP) { nextP = endP; }
-                    else {
-                        let ratio = i / segments;
-                        let nx = dragStart.x + dx * ratio;
-                        let ny = dragStart.y + dy * ratio;
-                        let pin = (isLast && ny >= groundY - 1);
-                        if (pin) ny = groundY;
-                        nextP = addPoint(nx, ny, pin, currentMat);
-                    }
-                    if (currentStart !== nextP) {
-                        let exists = sticks.some(s => (s.p1 === currentStart && s.p2 === nextP) || (s.p1 === nextP && s.p2 === currentStart));
-                        if (!exists) sticks.push(new Stick(currentStart, nextP, currentMat));
-                    }
-                    currentStart = nextP;
-                }
-            }
-            isDragging = false; dragStart = null;
-        });
-
-        canvas.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            if (isSimulating) return;
-            if (!deleteMode && hoveredPoint) { saveHistory(); deletePoint(hoveredPoint); showToast("删除节点"); }
-        });
-
-        function saveBlueprint() {
-            let savedPoints = points.map(p => ({ x: p.x, y: p.y, pinned: p.pinned, matId: p.mat.id, uid: p.simId }));
-            let savedSticks = sticks.map(s => ({ p1_idx: points.indexOf(s.p1), p2_idx: points.indexOf(s.p2), matId: s.mat.id, uid: s.simId }));
-            blueprint = { points: savedPoints, sticks: savedSticks };
-        }
-
-        function restoreBlueprint() {
-            if (!blueprint) return;
-            fragments = [];
-            points = []; sticks = [];
-            // 重建蓝图
-            blueprint.points.forEach(bp => addPoint(bp.x, bp.y, bp.pinned, bp.matId, bp.uid));
-            blueprint.sticks.forEach(bs => {
-                if (points[bs.p1_idx] && points[bs.p2_idx]) sticks.push(new Stick(points[bs.p1_idx], points[bs.p2_idx], bs.matId, bs.uid));
-            });
-
-            // 将 breakLog 应用回重建的对象上，用于高亮显示
-            breakLog.forEach(log => {
-                if (log.type === 'stick') {
-                    let s = sticks.find(item => item.simId === log.simId);
-                    if (s) { s.wasBroken = true; s.breakOrder = log.order; }
-                } else if (log.type === 'point') {
-                    let p = points.find(item => item.simId === log.simId);
-                    if (p) { p.wasBroken = true; p.breakOrder = log.order; }
-                }
-            });
-        }
-
-        window.setMaterial = (matId) => {
-            currentMat = matId;
-            document.querySelectorAll('.mat-option').forEach(el => el.classList.remove('active'));
-            document.getElementById('mat-' + matId).classList.add('active');
-            showToast(`已切换材料为：${MATERIALS[matId].name}`);
-        };
-
-        window.updateEnv = (type, val) => {
-            env[type] = parseInt(val);
-            let text = val;
-            if (type === 'wind' || type === 'quake') text += "级";
-            if (type === 'load') text += "kg";
-            document.getElementById(`val-${type}`).innerText = text;
-        };
-
-        window.toggleSimulation = () => {
-            const btn = document.getElementById('btn-mode');
-            const sliders = document.querySelectorAll('input[type=range]');
-
-            if (!isSimulating) {
-                statsLocked = true;
-                saveBlueprint();
-                // 清理状态
-                breakLog = [];
-                nextBreakOrder = 1;
-                fragments = [];
-                points.forEach(p => { p.broken = false; });
-                sticks.forEach(s => { s.broken = false; });
-                
-                angleConstraints = [];
-                buildAngleConstraints();
-                isSimulating = true;
-                preheatRemaining = 40;
-                btn.innerHTML = "⏹️ 停止测试";
-                btn.classList.add('testing');
-                sliders.forEach(s => s.disabled = false);
-                showToast("测试开始：重力引擎已全开");
-            } else {
-                statsLocked = false;
-                restoreBlueprint();
-                isSimulating = false;
-                preheatRemaining = 0;
-                angleConstraints = [];
-                btn.innerHTML = "▶️ 开始测试";
-                btn.classList.remove('testing');
-                sliders.forEach(s => { s.value = 0; s.disabled = true; });
-                env = { wind: 0, quake: 0, load: 0 };
-                document.getElementById('val-wind').innerText = "0级";
-                document.getElementById('val-quake').innerText = "0级";
-                document.getElementById('val-load').innerText = "0kg";
-                showToast("复盘模式：红色标记为最先断裂处");
-            }
-        };
-
-        window.clearAll = () => {
-            if (isSimulating) return;
-            if (confirm("确定要清空所有设计吗？")) {
-                points = []; sticks = []; fragments = []; breakLog = [];
-                init(); blueprint = null;
-                saveHistory();
-                showToast("已清空");
-            }
-        };
-
-        window.undo = () => undo();
-        window.toggleDeleteMode = () => toggleDeleteMode();
-        window.autoConnectIntersections = () => autoConnectIntersections();
-
-        function showToast(msg) {
-            let t = document.getElementById('toast');
-            if (t) { t.innerText = msg; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2000); }
-        }
-
-        function updateStats() {
-            const getEl = (id) => document.getElementById(id);
-            
-            let maxH = 0;
-            points.forEach(p => { if (!p.broken) maxH = Math.max(maxH, groundY - p.y); });
-            let heightText = Math.round(maxH / CONFIG.scale) + " cm";
-            let elMainHeight = document.getElementById('height-indicator');
-            if (elMainHeight) elMainHeight.innerText = `🏔️ 最高点：${heightText}`;
-
-            if (statsLocked) return;
-
-            let nodeCount = points.length;
-            let elNodes = getEl('stat-nodes');
-            if (elNodes) elNodes.innerText = nodeCount;
-
-            let lenWood = 0, lenSteel = 0, lenCarbon = 0;
-            sticks.forEach(s => {
-                let l = s.len / CONFIG.scale;
-                if (s.mat.id === 'wood') lenWood += l;
-                else if (s.mat.id === 'steel') lenSteel += l;
-                else if (s.mat.id === 'carbon') lenCarbon += l;
-            });
-
-            let elLenWood = getEl('stat-len-wood'); if (elLenWood) elLenWood.innerText = Math.round(lenWood);
-            let elLenSteel = getEl('stat-len-steel'); if (elLenSteel) elLenSteel.innerText = Math.round(lenSteel);
-            let elLenCarbon = getEl('stat-len-carbon'); if (elLenCarbon) elLenCarbon.innerText = Math.round(lenCarbon);
-
-            let totalLength = lenWood + lenSteel + lenCarbon;
-            let elTotalLen = getEl('stat-total-length'); if (elTotalLen) elTotalLen.innerText = Math.round(totalLength);
-
-            let cost = nodeCount * CONFIG.nodeBaseCost + lenWood*2 + lenSteel*8 + lenCarbon*20;
-            let elCost = getEl('stat-cost'); if (elCost) elCost.innerText = Math.round(cost);
-        }
-
-        init();
-    })();
+init();
 </script>
 </body>
 </html>
