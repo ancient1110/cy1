@@ -1,0 +1,59 @@
+name: Auto update PR branch
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-branch:
+    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update PR branch with latest base branch
+        id: update
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            try {
+              const res = await github.rest.pulls.updateBranch({
+                owner,
+                repo,
+                pull_number,
+                expected_head_sha: context.payload.pull_request.head.sha,
+              });
+
+              core.info(`updateBranch status: ${res.status}`);
+              core.setOutput('updated', 'true');
+            } catch (error) {
+              core.warning(`updateBranch failed: ${error.message}`);
+              core.setOutput('updated', 'false');
+            }
+
+      - name: Comment when branch cannot be auto-updated
+        if: steps.update.outputs.updated == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: [
+                '⚠️ 自动更新 PR 分支失败。',
+                '',
+                '通常是因为发生了真实冲突（无法自动合并），请在分支上手动解决冲突后再 push。',
+                '如果只是并发更新导致的 SHA 不匹配，重新触发一次 workflow 即可。'
+              ].join('\n')
+            });
