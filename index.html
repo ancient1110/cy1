@@ -85,7 +85,10 @@ const PHYSICS = {
   solverSubSteps: 8,
   forceCapFactor: 1.35,
   maxNodeSpeed: 8,
-  overloadFramesToFail: 14
+  overloadFramesToFail: 18,
+  startupRampFrames: 150,
+  breakGraceFrames: 150,
+  nodeLumpedMass: 0.9
 };
 const MATERIALS = [
   { name: '木条', color: '#8e44ad', cost: 2, E: 9e9, density: 500, area: 0.0009, tensile: 35e6, compressive: 24e6, radius: 0.012 },
@@ -165,10 +168,10 @@ function drawFragments() { state.fragments.forEach(f => { f.x += f.vx; f.y += f.
 
 function evaluateStructure() {
   state.simFrames += 1;
-  const startupRamp = Math.min(1, state.simFrames / 60);
-  const canBreak = state.simFrames > 60;
+  const startupRamp = Math.min(1, state.simFrames / PHYSICS.startupRampFrames);
+  const canBreak = state.simFrames > PHYSICS.breakGraceFrames;
 
-  state.nodes.forEach(n => { n.fx = 0; n.fy = 0; n.mass = 6; });
+  state.nodes.forEach(n => { n.fx = 0; n.fy = 0; n.mass = PHYSICS.nodeLumpedMass; });
   const activeMembers = state.members.filter(m => !m.broken && !m.a.broken && !m.b.broken);
 
   for (const m of activeMembers) {
