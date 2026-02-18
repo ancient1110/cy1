@@ -88,7 +88,11 @@ const PHYSICS = {
   overloadFramesToFail: 18,
   startupRampFrames: 150,
   breakGraceFrames: 150,
-  nodeLumpedMass: 0.9
+  nodeLumpedMass: 0.9,
+  settleFrames: 180,
+  settleIterations: 18,
+  settleCorrection: 0.24,
+  settleDamping: 0.72
 };
 const MATERIALS = [
   { name: '木条', color: '#8e44ad', cost: 2, E: 9e9, density: 500, area: 0.0009, tensile: 35e6, compressive: 24e6, radius: 0.012 },
@@ -166,10 +170,40 @@ window.clearAll = () => {
 function makeFragments(x, y, color) { for (let i = 0; i < 10; i++) state.fragments.push({ x, y, vx: (Math.random() - 0.5) * 4, vy: Math.random() * -3, life: 1, color }); }
 function drawFragments() { state.fragments.forEach(f => { f.x += f.vx; f.y += f.vy; f.vy += 0.18; f.life -= 0.02; ctx.globalAlpha = Math.max(0, f.life); ctx.fillStyle = f.color; ctx.fillRect(f.x, f.y, 3, 3); }); ctx.globalAlpha = 1; state.fragments = state.fragments.filter(f => f.life > 0); }
 
+function relaxMemberGeometry(members, strength) {
+  for (const m of members) {
+    if (m.broken || m.a.broken || m.b.broken) continue;
+    const dx = m.b.x - m.a.x;
+    const dy = m.b.y - m.a.y;
+    const L = Math.hypot(dx, dy);
+    if (L < 0.0001) continue;
+
+    const diff = (L - m.l0) * strength;
+    const ux = dx / L;
+    const uy = dy / L;
+
+    const movableA = !m.a.pinned;
+    const movableB = !m.b.pinned;
+    if (movableA && movableB) {
+      m.a.x += ux * diff * 0.5;
+      m.a.y += uy * diff * 0.5;
+      m.b.x -= ux * diff * 0.5;
+      m.b.y -= uy * diff * 0.5;
+    } else if (movableA) {
+      m.a.x += ux * diff;
+      m.a.y += uy * diff;
+    } else if (movableB) {
+      m.b.x -= ux * diff;
+      m.b.y -= uy * diff;
+    }
+  }
+}
+
 function evaluateStructure() {
   state.simFrames += 1;
   const startupRamp = Math.min(1, state.simFrames / PHYSICS.startupRampFrames);
-  const canBreak = state.simFrames > PHYSICS.breakGraceFrames;
+  const isSettling = state.simFrames <= PHYSICS.settleFrames;
+  const canBreak = state.simFrames > (PHYSICS.breakGraceFrames + PHYSICS.settleFrames);
 
   state.nodes.forEach(n => { n.fx = 0; n.fy = 0; n.mass = PHYSICS.nodeLumpedMass; });
   const activeMembers = state.members.filter(m => !m.broken && !m.a.broken && !m.b.broken);
@@ -225,7 +259,8 @@ function evaluateStructure() {
       const ux = dx / Lpx;
       const uy = dy / Lpx;
       const strain = (Lpx - m.l0) / Math.max(1, m.l0);
-      const kAxial = (m.mat.E * m.mat.area) / Math.max(0.08, Lm);
+      const stiffnessRamp = isSettling ? (0.35 + 0.65 * startupRamp) : 1;
+      const kAxial = ((m.mat.E * m.mat.area) / Math.max(0.08, Lm)) * stiffnessRamp;
 
       // 限幅避免“科学参数 + 大步长”造成瞬态爆炸
       const materialLimit = m.mat.tensile * m.mat.area;
@@ -244,8 +279,9 @@ function evaluateStructure() {
     for (const n of liveNodes) {
       const ax = n.fx / n.mass;
       const ay = n.fy / n.mass;
-      n.vx = (n.vx + ax * dt) * PHYSICS.damping;
-      n.vy = (n.vy + ay * dt) * PHYSICS.damping;
+      const damping = isSettling ? PHYSICS.settleDamping : PHYSICS.damping;
+      n.vx = (n.vx + ax * dt) * damping;
+      n.vy = (n.vy + ay * dt) * damping;
 
       // 节点速度限幅，避免个别杆件断裂触发连锁数值飞散
       const v = Math.hypot(n.vx, n.vy);
@@ -260,6 +296,19 @@ function evaluateStructure() {
       n.y = Math.min(n.y, canvas.height - 60);
       n.fx = 0;
       n.fy = n.mass * PHYSICS.gravity;
+    }
+
+    // 几何松弛：把动力学瞬态转成更接近准静态平衡，降低开测即崩
+    relaxMemberGeometry(activeMembers, isSettling ? PHYSICS.settleCorrection : PHYSICS.settleCorrection * 0.35);
+  }
+
+  if (isSettling) {
+    for (let i = 0; i < PHYSICS.settleIterations; i++) {
+      relaxMemberGeometry(activeMembers, PHYSICS.settleCorrection * 0.65);
+      liveNodes.forEach(n => {
+        n.vx *= 0.55;
+        n.vy *= 0.55;
+      });
     }
   }
 

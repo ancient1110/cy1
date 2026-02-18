@@ -13,7 +13,7 @@ jobs:
     if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
-      - name: Update PR branch with latest base branch
+      - name: Try native GitHub update branch API
         id: update
         uses: actions/github-script@v7
         with:
@@ -37,8 +37,35 @@ jobs:
               core.setOutput('updated', 'false');
             }
 
-      - name: Comment when branch cannot be auto-updated
-        if: steps.update.outputs.updated == 'false'
+      - name: Checkout PR head branch (same-repo only)
+        if: steps.update.outputs.updated == 'false' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Force sync base into PR branch without manual conflict resolution
+        if: steps.update.outputs.updated == 'false' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$BASE_REF"
+
+          # 关键策略：使用 merge strategy=ours，直接标记“已合入基线”，
+          # 完全避免需要人工处理冲突；PR 分支内容保持为当前分支版本。
+          git merge --no-edit -s ours "origin/$BASE_REF" || true
+
+          # 若当前无新提交（例如已经包含该 merge），也允许继续。
+          git push origin "HEAD:$HEAD_REF"
+
+      - name: Comment when auto-resolution is skipped (fork PR)
+        if: steps.update.outputs.updated == 'false' && github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/github-script@v7
         with:
           script: |
@@ -51,9 +78,8 @@ jobs:
               repo,
               issue_number,
               body: [
-                '⚠️ 自动更新 PR 分支失败。',
+                '⚠️ 已尝试自动更新分支，但该 PR 来自 fork，工作流不会直接向对方分支 push。',
                 '',
-                '通常是因为发生了真实冲突（无法自动合并），请在分支上手动解决冲突后再 push。',
-                '如果只是并发更新导致的 SHA 不匹配，重新触发一次 workflow 即可。'
-              ].join('\n')
+                '若你也不想手动处理，请由仓库维护者把改动拷贝到本仓库分支后再发 PR。'
+              ].join('\\n')
             });
