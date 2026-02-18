@@ -76,7 +76,17 @@
   </div>
 
 <script>
-const PHYSICS = { pxPerMeter: 45, gravity: 9.81, dt: 1 / 60, damping: 0.985, windRef: 20 };
+const PHYSICS = {
+  pxPerMeter: 45,
+  gravity: 9.81,
+  dt: 1 / 60,
+  damping: 0.985,
+  windRef: 20,
+  solverSubSteps: 8,
+  forceCapFactor: 1.35,
+  maxNodeSpeed: 8,
+  overloadFramesToFail: 8
+};
 const MATERIALS = [
   { name: '木条', color: '#8e44ad', cost: 2, E: 9e9, density: 500, area: 0.0009, tensile: 35e6, compressive: 24e6, radius: 0.012 },
   { name: '钢管', color: '#2c3e50', cost: 8, E: 200e9, density: 7800, area: 0.0012, tensile: 280e6, compressive: 250e6, radius: 0.02 },
@@ -93,7 +103,7 @@ class Node {
 class Member {
   constructor(a, b, matIdx) {
     this.id = nextId++; this.a = a; this.b = b; this.matIdx = matIdx; this.mat = MATERIALS[matIdx];
-    this.l0 = this.lengthPx(); this.forceN = 0; this.ratio = 0; this.broken = false; this.wasBroken = false; this.breakOrder = 0;
+    this.l0 = this.lengthPx(); this.forceN = 0; this.ratio = 0; this.overloadCount = 0; this.broken = false; this.wasBroken = false; this.breakOrder = 0;
   }
   lengthPx() { return Math.hypot(this.a.x - this.b.x, this.a.y - this.b.y); }
   lengthM() { return this.lengthPx() / PHYSICS.pxPerMeter; }
@@ -158,9 +168,8 @@ function evaluateStructure() {
   const activeMembers = state.members.filter(m => !m.broken && !m.a.broken && !m.b.broken);
 
   for (const m of activeMembers) {
-    const mat = m.mat;
     const L = Math.max(0.1, m.lengthM());
-    const mass = mat.density * mat.area * L;
+    const mass = m.mat.density * m.mat.area * L;
     m.a.mass += mass * 0.5;
     m.b.mass += mass * 0.5;
   }
@@ -180,48 +189,80 @@ function evaluateStructure() {
     const Hm = Math.max(1, (canvas.height - 60 - topY) / PHYSICS.pxPerMeter);
     const q = 0.613 * Math.pow((state.env.wind / 100) * PHYSICS.windRef, 2);
     const sway = Math.sin(performance.now() / 700);
-    const sumWeight = liveNodes.reduce((s, n) => s + Math.max(1, (canvas.height - 60 - n.y)), 0);
-    liveNodes.forEach(n => n.fx += sway * q * Hm * 0.3 * (Math.max(1, (canvas.height - 60 - n.y)) / sumWeight));
+    const sumWeight = liveNodes.reduce((acc, n) => acc + Math.max(1, (canvas.height - 60 - n.y)), 0);
+    liveNodes.forEach(n => {
+      const share = Math.max(1, (canvas.height - 60 - n.y)) / sumWeight;
+      n.fx += sway * q * Hm * 0.3 * share;
+    });
   }
 
   if (state.env.quake > 0) {
     const ag = (state.env.quake / 100) * 0.8 * PHYSICS.gravity;
     const ax = Math.sin(performance.now() / 160) * ag;
     liveNodes.forEach(n => n.fx += n.mass * ax);
-    state.nodes.filter(n => n.pinned).forEach(n => { n.x = n.baseX + Math.sin(performance.now() / 160) * (state.env.quake / 100) * 6; });
+    state.nodes.filter(n => n.pinned).forEach(n => {
+      n.x = n.baseX + Math.sin(performance.now() / 160) * (state.env.quake / 100) * 6;
+    });
   } else {
     state.nodes.filter(n => n.pinned).forEach(n => n.x = n.baseX);
   }
 
-  const dt = PHYSICS.dt;
-  for (let k = 0; k < 12; k++) {
+  // 核心折中：保留工程化计算，同时增加数值限幅与延迟破坏，增强抗脆弱性
+  const dt = PHYSICS.dt / PHYSICS.solverSubSteps;
+  for (let k = 0; k < PHYSICS.solverSubSteps; k++) {
     for (const m of activeMembers) {
-      const dx = m.b.x - m.a.x; const dy = m.b.y - m.a.y;
-      const Lpx = Math.hypot(dx, dy) || 1; const Lm = Lpx / PHYSICS.pxPerMeter;
-      const ux = dx / Lpx; const uy = dy / Lpx;
+      const dx = m.b.x - m.a.x;
+      const dy = m.b.y - m.a.y;
+      const Lpx = Math.hypot(dx, dy) || 1;
+      const Lm = Lpx / PHYSICS.pxPerMeter;
+      const ux = dx / Lpx;
+      const uy = dy / Lpx;
       const strain = (Lpx - m.l0) / Math.max(1, m.l0);
       const kAxial = (m.mat.E * m.mat.area) / Math.max(0.08, Lm);
-      const force = kAxial * strain;
+
+      // 限幅避免“科学参数 + 大步长”造成瞬态爆炸
+      const materialLimit = m.mat.tensile * m.mat.area;
+      const forceCap = materialLimit * PHYSICS.forceCapFactor;
+      const force = Math.max(-forceCap, Math.min(forceCap, kAxial * strain));
+
       m.forceN = force;
-      m.ratio = force >= 0 ? force / m.mat.tensile : Math.abs(force) / bucklingLimit(m, Lm);
-      m.a.fx += force * ux; m.a.fy += force * uy;
-      m.b.fx -= force * ux; m.b.fy -= force * uy;
+      const compLimit = bucklingLimit(m, Lm) * m.mat.area;
+      m.ratio = force >= 0 ? force / materialLimit : Math.abs(force) / Math.max(1, compLimit);
+      m.a.fx += force * ux;
+      m.a.fy += force * uy;
+      m.b.fx -= force * ux;
+      m.b.fy -= force * uy;
     }
 
     for (const n of liveNodes) {
-      const ax = n.fx / n.mass; const ay = n.fy / n.mass;
+      const ax = n.fx / n.mass;
+      const ay = n.fy / n.mass;
       n.vx = (n.vx + ax * dt) * PHYSICS.damping;
       n.vy = (n.vy + ay * dt) * PHYSICS.damping;
+
+      // 节点速度限幅，避免个别杆件断裂触发连锁数值飞散
+      const v = Math.hypot(n.vx, n.vy);
+      if (v > PHYSICS.maxNodeSpeed) {
+        const scale = PHYSICS.maxNodeSpeed / v;
+        n.vx *= scale;
+        n.vy *= scale;
+      }
+
       n.x += n.vx * PHYSICS.pxPerMeter * dt;
       n.y += n.vy * PHYSICS.pxPerMeter * dt;
       n.y = Math.min(n.y, canvas.height - 60);
-      n.fx = 0; n.fy = n.mass * PHYSICS.gravity;
+      n.fx = 0;
+      n.fy = n.mass * PHYSICS.gravity;
     }
   }
 
   for (const m of activeMembers) {
-    if (m.ratio > 1) {
+    if (m.ratio > 1) m.overloadCount += 1;
+    else m.overloadCount = Math.max(0, m.overloadCount - 1);
+
+    if (m.overloadCount >= PHYSICS.overloadFramesToFail) {
       m.broken = true;
+      m.overloadCount = 0;
       if (!state.breakLog.some(i => i.id === m.id && i.type === 'member')) {
         state.breakLog.push({ type: 'member', id: m.id, order: state.nextBreakOrder++ });
         makeFragments((m.a.x + m.b.x) * 0.5, (m.a.y + m.b.y) * 0.5, m.mat.color);
@@ -380,7 +421,7 @@ function beginSimulation() {
   state.blueprint = serialize();
   state.breakLog = []; state.nextBreakOrder = 1; state.fragments = [];
   state.nodes.forEach(n => { n.vx = 0; n.vy = 0; n.broken = false; n.wasBroken = false; n.breakOrder = 0; n.baseX = n.x; });
-  state.members.forEach(m => { m.broken = false; m.wasBroken = false; m.breakOrder = 0; m.forceN = 0; m.ratio = 0; });
+  state.members.forEach(m => { m.broken = false; m.wasBroken = false; m.breakOrder = 0; m.forceN = 0; m.ratio = 0; m.overloadCount = 0; });
   state.simulating = true;
   document.getElementById('btn-mode').textContent = '⏹️ 停止测试';
   document.getElementById('btn-mode').className = 'mode-btn running';
