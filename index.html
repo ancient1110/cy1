@@ -1,960 +1,541 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>塔台工程模拟器</title>
-    <style>
-        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background: #f0f2f5; display: flex; user-select: none; }
-
-        #canvas-container {
-            flex-grow: 1; height: 100vh; position: relative;
-            background: radial-gradient(circle at center, #fff 0%, #eef2f3 100%);
-            cursor: crosshair;
-        }
-
-        #sidebar {
-            width: 310px; height: 100vh; background: #fff;
-            border-left: 1px solid #ddd; display: flex; flex-direction: column;
-            box-shadow: -4px 0 12px rgba(0,0,0,0.06); z-index: 100; flex-shrink: 0;
-        }
-        .sidebar-scroll { padding: 12px 14px; overflow-y: auto; flex-grow: 1; }
-
-        h2 { font-size: 13px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 4px; margin: 14px 0 8px; }
-        h2:first-child { margin-top: 0; }
-
-        .mode-btn {
-            width: 100%; padding: 11px; border: none; border-radius: 8px;
-            font-size: 15px; font-weight: bold; cursor: pointer; color: #fff;
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            box-shadow: 0 4px 10px rgba(46,204,113,0.35); margin-bottom: 10px; transition: all .2s;
-        }
-        .mode-btn.running {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            box-shadow: 0 4px 10px rgba(231,76,60,0.35);
-        }
-        .mode-btn:active { transform: scale(0.98); }
-
-        .mat-row { display: flex; gap: 6px; margin-bottom: 8px; }
-        .mat-card {
-            flex: 1; padding: 7px 3px; border: 2px solid #eee; border-radius: 6px;
-            text-align: center; cursor: pointer; font-size: 11px; background: #fafafa; transition: .15s;
-        }
-        .mat-card:hover { border-color: #bbb; }
-        .mat-card.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
-
-        .slider-box { background: #f8f9fa; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: #555; margin-bottom: 3px; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #3498db; }
-
-        .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #555; }
-        .total-cost { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; color: #e67e22; font-weight: bold; margin-top: 8px; }
-
-        .btn-row { display: flex; gap: 6px; margin-top: 8px; }
-        .btn-s {
-            flex: 1; background: #ecf0f1; border: none; padding: 7px 0;
-            border-radius: 4px; cursor: pointer; font-size: 12px; color: #555;
-        }
-        .btn-s:hover { background: #ffeaa7; color: #d35400; }
-        .btn-s.danger { background: #fde6e6; color: #c0392b; }
-        .btn-s.danger:hover { background: #f5b7b1; }
-
-        #btn-del {
-            width: 100%; margin-top: 6px; padding: 7px; background: #ecf0f1;
-            border: 2px solid #bdc3c7; border-radius: 4px; cursor: pointer; font-size: 12px;
-        }
-        #btn-del.active { background: #e74c3c; border-color: #c0392b; color: #fff; }
-
-        .btn-special {
-            width: 100%; margin-top: 8px; padding: 8px; background: #3498db;
-            color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;
-        }
-        .btn-special:hover { background: #2980b9; }
-
-        #toast {
-            position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
-            background: rgba(44,62,80,.88); color: #fff; padding: 8px 18px;
-            border-radius: 30px; opacity: 0; transition: opacity .4s; pointer-events: none; font-size:13px;
-        }
-        #height-indicator {
-            position: absolute; top: 12px; left: 14px;
-            background: rgba(255,255,255,.92); color: #2c3e50;
-            border: 1px solid #d5d8dc; border-radius: 10px; padding: 7px 12px;
-            font-size: 13px; font-weight: 600; pointer-events: none;
-            box-shadow: 0 3px 8px rgba(0,0,0,.08);
-        }
-        #replay-banner {
-            position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
-            background: rgba(231,76,60,.9); color: #fff; padding: 8px 18px;
-            border-radius: 20px; font-size: 13px; display: none;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>塔台工程模拟器（重构版）</title>
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0; overflow: hidden; background: #f0f2f5; display: flex; user-select: none; }
+    #canvas-container { flex-grow: 1; height: 100vh; position: relative; background: radial-gradient(circle at center, #fff 0%, #eef2f3 100%); cursor: crosshair; }
+    #sidebar { width: 310px; height: 100vh; background: #fff; border-left: 1px solid #ddd; display: flex; flex-direction: column; box-shadow: -4px 0 12px rgba(0,0,0,0.06); z-index: 100; flex-shrink: 0; }
+    .sidebar-scroll { padding: 12px 14px; overflow-y: auto; flex-grow: 1; }
+    h2 { font-size: 13px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 4px; margin: 14px 0 8px; }
+    h2:first-child { margin-top: 0; }
+    .mode-btn { width: 100%; padding: 11px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; color: #fff; background: linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 4px 10px rgba(46,204,113,0.35); margin-bottom: 10px; transition: all .2s; }
+    .mode-btn.running { background: linear-gradient(135deg, #e74c3c, #c0392b); box-shadow: 0 4px 10px rgba(231,76,60,0.35); }
+    .mode-btn:active { transform: scale(0.98); }
+    .mat-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .mat-card { flex: 1; padding: 7px 3px; border: 2px solid #eee; border-radius: 6px; text-align: center; cursor: pointer; font-size: 11px; background: #fafafa; transition: .15s; }
+    .mat-card:hover { border-color: #bbb; }
+    .mat-card.active { border-color: #3498db; background: #ebf5fb; color: #2980b9; font-weight: bold; }
+    .slider-box { background: #f8f9fa; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: #555; margin-bottom: 3px; }
+    input[type=range] { width: 100%; cursor: pointer; accent-color: #3498db; }
+    .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #555; }
+    .total-cost { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; color: #e67e22; font-weight: bold; margin-top: 8px; }
+    .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+    .btn-s { flex: 1; background: #ecf0f1; border: none; padding: 7px 0; border-radius: 4px; cursor: pointer; font-size: 12px; color: #555; }
+    .btn-s:hover { background: #ffeaa7; color: #d35400; }
+    .btn-s.danger { background: #fde6e6; color: #c0392b; }
+    .btn-s.danger:hover { background: #f5b7b1; }
+    #btn-del { width: 100%; margin-top: 6px; padding: 7px; background: #ecf0f1; border: 2px solid #bdc3c7; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #btn-del.active { background: #e74c3c; border-color: #c0392b; color: #fff; }
+    .btn-special { width: 100%; margin-top: 8px; padding: 8px; background: #3498db; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .btn-special:hover { background: #2980b9; }
+    #toast { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); background: rgba(44,62,80,.88); color: #fff; padding: 8px 18px; border-radius: 30px; opacity: 0; transition: opacity .4s; pointer-events: none; font-size:13px; }
+    #height-indicator { position: absolute; top: 12px; left: 14px; background: rgba(255,255,255,.92); color: #2c3e50; border: 1px solid #d5d8dc; border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 600; pointer-events: none; box-shadow: 0 3px 8px rgba(0,0,0,.08); }
+    #replay-banner { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(231,76,60,.9); color: #fff; padding: 8px 18px; border-radius: 20px; font-size: 13px; display: none; }
+  </style>
 </head>
 <body>
-
-<div id="canvas-container">
+  <div id="canvas-container">
     <canvas id="simCanvas"></canvas>
     <div id="toast"></div>
     <div id="height-indicator">🏔️ 最高点：0 cm</div>
     <div id="replay-banner">🔍 复盘模式：红色标记为最先断裂处</div>
-</div>
+  </div>
 
-<div id="sidebar">
+  <div id="sidebar">
     <div class="sidebar-scroll">
-        <button id="btn-mode" class="mode-btn" onclick="toggleSim()">▶️ 开始测试</button>
+      <button id="btn-mode" class="mode-btn" onclick="toggleSim()">▶️ 开始测试</button>
+      <h2>🏗️ 材料选择</h2>
+      <div class="mat-row">
+        <div class="mat-card active" onclick="setMat(0)" id="mat-0"><div style="width:10px;height:10px;background:#8e44ad;border-radius:50%;margin:0 auto 4px"></div>木条<br>¥2/cm</div>
+        <div class="mat-card" onclick="setMat(1)" id="mat-1"><div style="width:10px;height:10px;background:#2c3e50;border-radius:50%;margin:0 auto 4px"></div>钢管<br>¥8/cm</div>
+        <div class="mat-card" onclick="setMat(2)" id="mat-2"><div style="width:10px;height:10px;background:#2980b9;border-radius:50%;margin:0 auto 4px"></div>碳纤<br>¥20/cm</div>
+      </div>
+      <h2>🎛️ 环境载荷</h2>
+      <div class="slider-box"><div class="slider-label"><span>💨 风力</span><span id="disp-wind">0级</span></div><input type="range" id="range-wind" min="0" max="100" value="0" disabled oninput="setEnv('wind',this.value)"></div>
+      <div class="slider-box"><div class="slider-label"><span>🌋 地震</span><span id="disp-quake">0级</span></div><input type="range" id="range-quake" min="0" max="100" value="0" disabled oninput="setEnv('quake',this.value)"></div>
+      <div class="slider-box"><div class="slider-label"><span>⚖️ 顶部压重</span><span id="disp-load">0kg</span></div><input type="range" id="range-load" min="0" max="100" value="0" disabled oninput="setEnv('load',this.value)"></div>
 
-        <h2>🏗️ 材料选择</h2>
-        <div class="mat-row">
-            <div class="mat-card active" onclick="setMat(0)" id="mat-0">
-                <div style="width:10px;height:10px;background:#8e44ad;border-radius:50%;margin:0 auto 4px"></div>
-                木条<br>¥2/cm
-            </div>
-            <div class="mat-card" onclick="setMat(1)" id="mat-1">
-                <div style="width:10px;height:10px;background:#2c3e50;border-radius:50%;margin:0 auto 4px"></div>
-                钢管<br>¥8/cm
-            </div>
-            <div class="mat-card" onclick="setMat(2)" id="mat-2">
-                <div style="width:10px;height:10px;background:#2980b9;border-radius:50%;margin:0 auto 4px"></div>
-                碳纤<br>¥20/cm
-            </div>
-        </div>
+      <h2>📊 工程造价单</h2>
+      <div class="stat-row"><span>节点数:</span><span id="count-node">0</span> × ¥50</div>
+      <div class="stat-row"><span>杆件总长:</span><span id="stat-total-len">0 cm</span></div>
+      <div class="stat-row"><span>木条:</span><span id="stat-len-wood">0 cm</span> (¥2)</div>
+      <div class="stat-row"><span>钢管:</span><span id="stat-len-steel">0 cm</span> (¥8)</div>
+      <div class="stat-row"><span>碳纤:</span><span id="stat-len-carbon">0 cm</span> (¥20)</div>
+      <div class="stat-row"><span>最大应力:</span><span id="max-stress">0%</span></div>
+      <div class="total-cost"><span>总价:</span><span>¥<span id="cost-total">0</span></span></div>
 
-        <h2>🎛️ 环境载荷</h2>
-        <div class="slider-box">
-            <div class="slider-label"><span>💨 风力</span><span id="disp-wind">0级</span></div>
-            <input type="range" id="range-wind" min="0" max="100" value="0" disabled oninput="setEnv('wind',this.value)">
-        </div>
-        <div class="slider-box">
-            <div class="slider-label"><span>🌋 地震</span><span id="disp-quake">0级</span></div>
-            <input type="range" id="range-quake" min="0" max="100" value="0" disabled oninput="setEnv('quake',this.value)">
-        </div>
-        <div class="slider-box">
-            <div class="slider-label"><span>⚖️ 顶部压重</span><span id="disp-load">0kg</span></div>
-            <input type="range" id="range-load" min="0" max="100" value="0" disabled oninput="setEnv('load',this.value)">
-        </div>
-
-        <h2>📊 工程造价单</h2>
-        <div class="stat-row"><span>节点数:</span><span id="count-node">0</span> × ¥50</div>
-        <div class="stat-row"><span>杆件总长:</span><span id="stat-total-len">0 cm</span></div>
-        <div class="stat-row"><span>木条:</span><span id="stat-len-wood">0 cm</span> (¥2)</div>
-        <div class="stat-row"><span>钢管:</span><span id="stat-len-steel">0 cm</span> (¥8)</div>
-        <div class="stat-row"><span>碳纤:</span><span id="stat-len-carbon">0 cm</span> (¥20)</div>
-        <div class="stat-row"><span>最大应力:</span><span id="max-stress">0%</span></div>
-        <div class="total-cost"><span>总价:</span><span>¥<span id="cost-total">0</span></span></div>
-
-        <div class="btn-row">
-            <button class="btn-s" onclick="undo()">↩️ 撤销</button>
-            <button class="btn-s danger" onclick="clearAll()">🗑️ 清空</button>
-        </div>
-        <button id="btn-del" onclick="toggleDel()">✂️ 删除模式：关闭</button>
-        <button class="btn-special" onclick="autoConnect()">🔗 自动连接交叉点</button>
+      <div class="btn-row"><button class="btn-s" onclick="undo()">↩️ 撤销</button><button class="btn-s danger" onclick="clearAll()">🗑️ 清空</button></div>
+      <button id="btn-del" onclick="toggleDel()">✂️ 删除模式：关闭</button>
+      <button class="btn-special" onclick="autoConnect()">🔗 自动连接交叉点</button>
     </div>
-</div>
+  </div>
 
 <script>
-// ===== 物理配置 =====
 const PHYSICS = {
-    subSteps: 20,
-    gravity: 0.15,
-    groundY: 0,
-    scale: 50.0,
-    snap: 12,
-    damping: 0.98,
+  pxPerMeter: 45,
+  gravity: 9.81,
+  dt: 1 / 60,
+  damping: 0.985,
+  windRef: 20,
+  solverSubSteps: 8,
+  forceCapFactor: 1.35,
+  maxNodeSpeed: 8,
+  overloadFramesToFail: 8
 };
-
 const MATERIALS = [
-    { name:'木条', cost:2,  color:'#8e44ad', stiffness:0.25, density:0.3,  strength:0.12 },
-    { name:'钢管', cost:8,  color:'#2c3e50', stiffness:0.60, density:2.0,  strength:0.35 },
-    { name:'碳纤', cost:20, color:'#2980b9', stiffness:0.70, density:0.1,  strength:0.30 },
+  { name: '木条', color: '#8e44ad', cost: 2, E: 9e9, density: 500, area: 0.0009, tensile: 35e6, compressive: 24e6, radius: 0.012 },
+  { name: '钢管', color: '#2c3e50', cost: 8, E: 200e9, density: 7800, area: 0.0012, tensile: 280e6, compressive: 250e6, radius: 0.02 },
+  { name: '碳纤', color: '#2980b9', cost: 20, E: 140e9, density: 1600, area: 0.0006, tensile: 600e6, compressive: 250e6, radius: 0.01 }
 ];
 
-// ===== 全局状态 =====
-let state = {
-    simulating: false,
-    nodes: [], sticks: [], bends: [],
-    warmupFrames: 0,
-    matIdx: 0,
-    env: { wind:0, quake:0, load:0 },
-    mouse: {x:0,y:0},
-    dragging: false, dragStart: null,
-    hoverNode: null, hoverStick: null,
-    deleting: false,
-    history: [],
-    blueprint: null,      // 模拟前快照
-    breakLog: [],         // 断裂记录（用于复盘）
-    nextBreakOrder: 1,
-    statsLocked: false,   // 模拟中锁定造价统计
-};
-
-// ===== 碎片特效 =====
-let fragments = [];
-function createExplosion(x, y, color='#e67e22') {
-    for (let i=0; i<8; i++) fragments.push({
-        x, y, color,
-        vx:(Math.random()-.5)*8, vy:(Math.random()-.5)*8-2,
-        life:1.0, size:Math.random()*3+2
-    });
-}
-function updateFragments() {
-    fragments.forEach(f => {
-        f.x += f.vx; f.y += f.vy;
-        f.vy += 0.4; // 重力
-        f.life -= 0.025;
-        ctx.globalAlpha = f.life;
-        ctx.fillStyle = f.color;
-        ctx.fillRect(f.x, f.y, f.size, f.size);
-    });
-    ctx.globalAlpha = 1;
-    fragments = fragments.filter(f => f.life > 0);
-}
-
-// ===== Node 类 =====
-class Node {
-    constructor(x, y, pinned, matIdx=0) {
-        this.x = x; this.y = y;
-        this.oldX = x; this.oldY = y;
-        this.baseX = x; // 地震用：记录初始X
-        this.pinned = pinned;
-        this.matIdx = matIdx;
-        this.mass = 1;
-        this.forceX = 0; this.forceY = 0;
-        this.id = Math.random();
-        this.broken = false;
-        this.wasBroken = false; this.breakOrder = 0; // 复盘用
-    }
-
-    update() {
-        if (this.pinned) {
-            // 地震：让固定节点振动
-            if (state.env.quake > 0) {
-                let t = Date.now();
-                let xAmp = state.env.quake / 5;
-                let yAmp = state.env.quake / 8;
-                this.x = this.baseX + Math.sin(t/50) * xAmp;
-                this.y = PHYSICS.groundY + Math.cos(t/65) * yAmp;
-            } else {
-                this.x = this.baseX;
-                this.y = PHYSICS.groundY;
-            }
-            this.oldX = this.x; this.oldY = this.y;
-            return;
-        }
-        let vx = (this.x - this.oldX) * PHYSICS.damping;
-        let vy = (this.y - this.oldY) * PHYSICS.damping;
-        this.oldX = this.x; this.oldY = this.y;
-        let ax = this.forceX / this.mass;
-        let ay = this.forceY / this.mass;
-        this.x += vx + ax * 0.125 * 0.125;
-        this.y += vy + ay * 0.125 * 0.125;
-        if (this.y > PHYSICS.groundY) {
-            this.y = PHYSICS.groundY;
-            this.oldY = this.y + vy * 0.5;
-        }
-        this.forceX = 0; this.forceY = 0;
-    }
-}
-
-// ===== Stick 类 =====
-class Stick {
-    constructor(n1, n2, matIdx) {
-        this.n1 = n1; this.n2 = n2;
-        this.mat = MATERIALS[matIdx];
-        this.matIdx = matIdx;
-        this.len = Math.hypot(n1.x-n2.x, n1.y-n2.y);
-        this.stress = 0;
-        this.broken = false;
-        this.id = Math.random();
-        this.wasBroken = false; this.breakOrder = 0;
-    }
-
-    getMass() { return (this.len/PHYSICS.scale)*this.mat.density; }
-
-    solve() {
-        if (this.broken) return;
-        let dx = this.n2.x-this.n1.x, dy = this.n2.y-this.n1.y;
-        let currLen = Math.hypot(dx, dy);
-        if (currLen === 0) return;
-        let diff = currLen - this.len;
-        // 每次迭代累积|correction|，总累积量正比于约束力（XPBD的Lagrange乘子）
-        // 比"修正前最大值"更准确：两段等长杆受相同轴力时累积量相同
-        this.stress += diff / this.len / PHYSICS.subSteps;
-
-        let offX = (dx/currLen)*diff*0.5, offY = (dy/currLen)*diff*0.5;
-        if (!this.n1.pinned && !this.n2.pinned) {
-            this.n1.x+=offX; this.n1.y+=offY; this.n1.oldX+=offX; this.n1.oldY+=offY;
-            this.n2.x-=offX; this.n2.y-=offY; this.n2.oldX-=offX; this.n2.oldY-=offY;
-        } else if (!this.n1.pinned) {
-            this.n1.x+=offX*2; this.n1.y+=offY*2; this.n1.oldX+=offX*2; this.n1.oldY+=offY*2;
-        } else if (!this.n2.pinned) {
-            this.n2.x-=offX*2; this.n2.y-=offY*2; this.n2.oldX-=offX*2; this.n2.oldY-=offY*2;
-        }
-    }
-
-    draw() {
-        if (this.broken) return;
-        let dx = this.n2.x-this.n1.x, dy = this.n2.y-this.n1.y;
-        let len = Math.hypot(dx, dy);
-        if (len === 0) return;
-
-        // 复盘高亮
-        if (!state.simulating && this.wasBroken && this.breakOrder > 0 && this.breakOrder <= 3) {
-            ctx.beginPath();
-            ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 6;
-            ctx.moveTo(this.n1.x, this.n1.y); ctx.lineTo(this.n2.x, this.n2.y); ctx.stroke();
-        }
-
-        // 杆件本体：始终用材料原色
-        ctx.beginPath();
-        ctx.strokeStyle = this.mat.color;
-        ctx.lineWidth = 3; ctx.lineCap = 'round';
-        ctx.moveTo(this.n1.x, this.n1.y); ctx.lineTo(this.n2.x, this.n2.y); ctx.stroke();
-
-        // 模拟中：在杆件旁边画应力细线
-        if (state.simulating && Math.abs(this.stress) > 0.001) {
-            let ratio = Math.max(-1, Math.min(1, this.stress / this.mat.strength));
-            let stressColor = ratio > 0
-                ? `rgba(220, 50, 50, ${Math.abs(ratio) * 0.85})`   // 拉伸红
-                : `rgba(50, 100, 220, ${Math.abs(ratio) * 0.85})`; // 压缩蓝
-            // 垂直偏移4px
-            let nx = -(dy/len)*4, ny = (dx/len)*4;
-            ctx.beginPath();
-            ctx.strokeStyle = stressColor;
-            ctx.lineWidth = 1.5; ctx.lineCap = 'round';
-            ctx.moveTo(this.n1.x+nx, this.n1.y+ny);
-            ctx.lineTo(this.n2.x+nx, this.n2.y+ny);
-            ctx.stroke();
-        }
-    }
-}
-
-// ===== BendConstraint =====
-class BendConstraint {
-    constructor(a, b, c, s1, s2) {
-        this.a=a; this.b=b; this.c=c; this.s1=s1; this.s2=s2;
-        this.targetAngle = this._angle();
-        this.valid = true;
-    }
-    _angle() {
-        let ax=this.a.x-this.b.x, ay=this.a.y-this.b.y;
-        let cx=this.c.x-this.b.x, cy=this.c.y-this.b.y;
-        return Math.atan2(ay,ax) - Math.atan2(cy,cx);
-    }
-    solve() {
-        if (this.s1.broken || this.s2.broken) return;
-        if (this.a.broken || this.b.broken || this.c.broken) return;
-        let ax=this.a.x-this.b.x, ay=this.a.y-this.b.y;
-        let cx=this.c.x-this.b.x, cy=this.c.y-this.b.y;
-        let la=Math.hypot(ax,ay), lc=Math.hypot(cx,cy);
-        if (la<0.001||lc<0.001) return;
-        let curAngle = Math.atan2(ay,ax)-Math.atan2(cy,cx);
-        let diff = curAngle - this.targetAngle;
-        while(diff>Math.PI) diff-=2*Math.PI;
-        while(diff<-Math.PI) diff+=2*Math.PI;
-        if (Math.abs(diff)<0.0001) return;
-        // 初始角接近180°（直线节点，即杆件中间插入的节点）用更高刚性
-        // 这类节点代表"连续杆件"，必须强力阻止弯折
-        let baseK = (this.s1&&this.s2) ? (this.s1.mat.stiffness+this.s2.mat.stiffness)*0.5 : 0.3;
-        let angleDev = Math.abs(Math.abs(this.targetAngle) - Math.PI); // 偏离180°的程度
-        let isStraight = angleDev < 0.3; // 初始接近直线
-        let k = isStraight ? Math.max(baseK, 0.6) : baseK; // 直线节点强制至少0.6刚性
-        let half = diff*k*0.5;
-        let cosH=Math.cos(-half),sinH=Math.sin(-half);
-        let nax=ax*cosH-ay*sinH, nay=ax*sinH+ay*cosH;
-        let ccosH=Math.cos(half),csinH=Math.sin(half);
-        let ncx=cx*ccosH-cy*csinH, ncy=cx*csinH+cy*ccosH;
-        if (!this.a.pinned) {
-            let mx=(this.b.x+nax)-this.a.x, my=(this.b.y+nay)-this.a.y;
-            this.a.x+=mx; this.a.y+=my; this.a.oldX+=mx; this.a.oldY+=my;
-        }
-        if (!this.c.pinned) {
-            let mx=(this.b.x+ncx)-this.c.x, my=(this.b.y+ncy)-this.c.y;
-            this.c.x+=mx; this.c.y+=my; this.c.oldX+=mx; this.c.oldY+=my;
-        }
-    }
-}
-
-// ===== 主程序 =====
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
 
-function init() {
-    resize();
-    window.addEventListener('resize', resize);
-    addNode(canvas.width/2-60, PHYSICS.groundY, true);
-    addNode(canvas.width/2+60, PHYSICS.groundY, true);
-    saveHistory();
-    loop();
+let nextId = 1;
+class Node {
+  constructor(x, y, pinned = false, matIdx = 0) { this.id = nextId++; this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.fx = 0; this.fy = 0; this.mass = 5; this.pinned = pinned; this.matIdx = matIdx; this.broken = false; this.wasBroken = false; this.breakOrder = 0; this.baseX = x; }
 }
+class Member {
+  constructor(a, b, matIdx) {
+    this.id = nextId++; this.a = a; this.b = b; this.matIdx = matIdx; this.mat = MATERIALS[matIdx];
+    this.l0 = this.lengthPx(); this.forceN = 0; this.ratio = 0; this.overloadCount = 0; this.broken = false; this.wasBroken = false; this.breakOrder = 0;
+  }
+  lengthPx() { return Math.hypot(this.a.x - this.b.x, this.a.y - this.b.y); }
+  lengthM() { return this.lengthPx() / PHYSICS.pxPerMeter; }
+}
+
+const state = {
+  nodes: [], members: [], matIdx: 0, simulating: false, deleting: false,
+  env: { wind: 0, quake: 0, load: 0 }, history: [], dragStart: null, dragging: false,
+  hoverNode: null, hoverMember: null, mouse: { x: 0, y: 0 }, fragments: [],
+  blueprint: null, breakLog: [], nextBreakOrder: 1
+};
 
 function resize() {
-    canvas.width = document.getElementById('canvas-container').offsetWidth;
-    canvas.height = document.getElementById('canvas-container').offsetHeight;
-    PHYSICS.groundY = canvas.height - 60;
-    state.nodes.forEach(n => { if(n.pinned){ n.y=PHYSICS.groundY; n.baseX=n.x; } });
+  canvas.width = document.getElementById('canvas-container').offsetWidth;
+  canvas.height = document.getElementById('canvas-container').offsetHeight;
 }
 
-function addNode(x, y, pinned=false, matIdx=null) {
-    let n = new Node(x, y, pinned, matIdx!=null?matIdx:state.matIdx);
-    state.nodes.push(n);
-    return n;
+function addNode(x, y, pinned = false, matIdx = state.matIdx) { const n = new Node(x, y, pinned, matIdx); state.nodes.push(n); return n; }
+function addMember(a, b, matIdx = state.matIdx) { if (a === b) return null; if (state.members.some(m => (m.a === a && m.b === b) || (m.a === b && m.b === a))) return null; const m = new Member(a, b, matIdx); state.members.push(m); return m; }
+
+function initScene() {
+  state.nodes = []; state.members = []; state.history = []; state.breakLog = []; state.nextBreakOrder = 1; state.fragments = [];
+  const y = canvas.height - 60;
+  addNode(canvas.width / 2 - 70, y, true);
+  addNode(canvas.width / 2 + 70, y, true);
+  saveHistory();
 }
 
-function buildBends() {
-    state.bends = [];
-    state.nodes.forEach(b => {
-        let connected = state.sticks.filter(s => !s.broken && (s.n1===b||s.n2===b));
-        for (let i=0;i<connected.length;i++) for (let j=i+1;j<connected.length;j++) {
-            let a = connected[i].n1===b ? connected[i].n2 : connected[i].n1;
-            let c = connected[j].n1===b ? connected[j].n2 : connected[j].n1;
-            let bc = new BendConstraint(a, b, c, connected[i], connected[j]);
-            if (bc.valid) state.bends.push(bc);
-        }
-    });
+function serialize() {
+  return {
+    nextId,
+    nodes: state.nodes.map(n => ({ ...n })),
+    members: state.members.map(m => ({ id: m.id, a: m.a.id, b: m.b.id, matIdx: m.matIdx, l0: m.l0 }))
+  };
 }
-
-// ===== 压重可视化 =====
-function drawLoadVisual() {
-    if (!state.simulating || state.env.load <= 0) return;
-    let active = state.nodes.filter(n => !n.broken);
-    if (!active.length) return;
-    let topY = Math.min(...active.map(n=>n.y));
-    let band = active.filter(n=>n.y<=topY+30);
-    if (!band.length) return;
-    let cx = band.reduce((s,n)=>s+n.x,0)/band.length;
-    let load = state.env.load;
-    let plateW = Math.max(100, Math.min(260, 100+load*1.4));
-    let plateH = 14;
-    let plateX = cx-plateW/2, plateY = Math.max(30, topY-24);
-    let blockW = Math.max(80, plateW*0.6);
-    let blockH = 20+load*0.7;
-    let blockX = cx-blockW/2, blockY = plateY-blockH-16;
-
-    ctx.fillStyle='rgba(52,73,94,0.95)'; ctx.fillRect(blockX,blockY,blockW,blockH);
-    ctx.fillStyle='#ecf0f1'; ctx.font='bold 13px Segoe UI'; ctx.textAlign='center';
-    ctx.fillText(`${load}kg`, cx, blockY+blockH/2+5);
-    ctx.strokeStyle='rgba(60,60,60,.9)'; ctx.lineWidth=2.5; ctx.beginPath();
-    ctx.moveTo(cx,blockY+blockH); ctx.lineTo(cx,plateY); ctx.stroke();
-    ctx.fillStyle='rgba(127,140,141,.95)'; ctx.fillRect(plateX,plateY,plateW,plateH);
-    ctx.strokeStyle='#888'; ctx.lineWidth=1; ctx.strokeRect(plateX,plateY,plateW,plateH);
-    ctx.textAlign='left';
+function restore(snapshot) {
+  nextId = snapshot.nextId;
+  const map = new Map();
+  state.nodes = snapshot.nodes.map(n => { const nn = new Node(n.x, n.y, n.pinned, n.matIdx); Object.assign(nn, n); map.set(nn.id, nn); return nn; });
+  state.members = snapshot.members.map(m => { const mm = new Member(map.get(m.a), map.get(m.b), m.matIdx); mm.id = m.id; mm.l0 = m.l0; return mm; });
 }
+function saveHistory() { if (state.simulating) return; if (state.history.length >= 40) state.history.shift(); state.history.push(serialize()); }
+window.undo = () => { if (state.simulating) return toast('测试中不能撤销'); if (state.history.length <= 1) return toast('没有更多步骤'); state.history.pop(); restore(state.history[state.history.length - 1]); toast('撤销成功'); };
 
-// ===== 主循环 =====
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 地面
-    ctx.fillStyle = '#95a5a6';
-    ctx.fillRect(0, PHYSICS.groundY, canvas.width, canvas.height-PHYSICS.groundY);
-
-    drawGrid();
-
-    if (state.simulating) {
-        // 质量初始化
-        state.nodes.forEach(n => n.mass=0.5);
-        state.sticks.forEach(s => {
-            if (!s.broken) {
-                s.stress = 0;
-                let m=s.getMass()/2;
-                s.n1.mass+=m; s.n2.mass+=m;
-            }
-        });
-        // 归一化：中间节点连接多根杆，质量等比缩减，避免中间节点过重导致差异应力
-        state.nodes.forEach(n => {
-            if (!n.pinned) {
-                let conn = state.sticks.filter(s=>!s.broken&&(s.n1===n||s.n2===n)).length;
-                if (conn > 1) n.mass = n.mass / Math.sqrt(conn); // sqrt缩减，保留部分质量差异但不过分
-            }
-        });
-
-        // 顶部压重
-        let active = state.nodes.filter(n=>!n.pinned&&!n.broken);
-        if (active.length>0 && state.env.load>0) {
-            let topNode = active.reduce((a,b)=>a.y<b.y?a:b);
-            topNode.forceY += state.env.load*9.8;
-        }
-
-        // 重力
-        active.forEach(n => n.forceY += PHYSICS.gravity*n.mass*50);
-
-        // 风力：总力 = wind×结构高度，按高度权重分配
-        if (state.env.wind>0 && active.length>0) {
-            let windDir = Math.sin(Date.now()/500);
-            let topY = Math.min(...active.map(n=>n.y));
-            let structH = PHYSICS.groundY - topY;
-            if (structH>0) {
-                let totalWind = windDir*state.env.wind*2.0*structH/500;
-                let heights = active.map(n=>Math.max(0,PHYSICS.groundY-n.y));
-                let sumH = heights.reduce((a,b)=>a+b,0);
-                active.forEach((n,i) => n.forceX += totalWind*(heights[i]/sumH));
-            }
-        }
-
-        // 积分
-        state.nodes.forEach(n => n.update());
-
-        // 约束迭代
-        for (let i=0; i<PHYSICS.subSteps; i++) {
-            state.bends.forEach(b => b.solve());
-            state.sticks.forEach(s => s.solve());
-            state.bends.forEach(b => b.solve());
-        }
-
-        // 预热结束后判断破断
-        state.warmupFrames++;
-        if (state.warmupFrames > 30) {
-            // 杆件断裂
-            state.sticks.forEach(s => {
-                if (!s.broken && Math.abs(s.stress)>s.mat.strength) {
-                    s.broken = true;
-                    if (!state.breakLog.find(l=>l.type==='stick'&&l.id===s.id)) {
-                        state.breakLog.push({type:'stick',id:s.id,order:state.nextBreakOrder++});
-                        createExplosion((s.n1.x+s.n2.x)/2,(s.n1.y+s.n2.y)/2,s.mat.color);
-                    }
-                }
-            });
-
-            // 孤立节点清理
-            state.nodes.filter(n=>!n.pinned&&!n.broken).forEach(n => {
-                let conn = state.sticks.filter(s=>!s.broken&&(s.n1===n||s.n2===n)).length;
-                if (conn===0) { n.broken=true; createExplosion(n.x,n.y,'#888'); }
-            });
-        }
-    }
-
-    // 绘制压重
-    drawLoadVisual();
-
-    // 绘制杆件
-    state.sticks.forEach(s => s.draw());
-
-    // 悬停杆件高亮
-    if (!state.simulating && !state.deleting && state.hoverStick && !state.hoverNode) {
-        ctx.strokeStyle='#2ecc71'; ctx.lineWidth=7; ctx.globalAlpha=0.45;
-        ctx.beginPath();
-        ctx.moveTo(state.hoverStick.n1.x,state.hoverStick.n1.y);
-        ctx.lineTo(state.hoverStick.n2.x,state.hoverStick.n2.y);
-        ctx.stroke(); ctx.globalAlpha=1;
-        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
-        ctx.beginPath(); ctx.arc(proj.x,proj.y,6,0,Math.PI*2);
-        ctx.fillStyle='#2ecc71'; ctx.fill();
-    }
-
-    // 绘制节点
-    state.nodes.forEach(n => {
-        if (n.broken) return;
-        // 复盘高亮
-        if (!state.simulating && n.wasBroken && n.breakOrder>0 && n.breakOrder<=3) {
-            ctx.beginPath(); ctx.arc(n.x,n.y,12,0,Math.PI*2);
-            ctx.strokeStyle='#e74c3c'; ctx.lineWidth=3; ctx.stroke();
-        }
-        ctx.beginPath(); ctx.arc(n.x,n.y,n.pinned?8:5,0,Math.PI*2);
-        ctx.fillStyle = n.pinned ? '#34495e' : MATERIALS[n.matIdx].color;
-        ctx.fill();
-        ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1; ctx.stroke();
-    });
-
-    // 拖拽预览（带分段提示）
-    if (state.dragging && state.dragStart) {
-        let dest = state.hoverNode || state.mouse;
-        if (!state.hoverNode && state.hoverStick)
-            dest = getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
-        ctx.beginPath(); ctx.moveTo(state.dragStart.x,state.dragStart.y);
-        ctx.lineTo(dest.x,dest.y);
-        ctx.strokeStyle=MATERIALS[state.matIdx].color; ctx.lineWidth=2.5;
-        ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-    }
-
-    // 删除模式悬停
-    if (state.deleting && !state.simulating) {
-        if (state.hoverStick) {
-            ctx.beginPath();
-            ctx.moveTo(state.hoverStick.n1.x,state.hoverStick.n1.y);
-            ctx.lineTo(state.hoverStick.n2.x,state.hoverStick.n2.y);
-            ctx.strokeStyle='#e67e22'; ctx.lineWidth=8;
-            ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-        }
-        if (state.hoverNode) {
-            ctx.beginPath(); ctx.arc(state.hoverNode.x,state.hoverNode.y,13,0,Math.PI*2);
-            ctx.strokeStyle='#e74c3c'; ctx.lineWidth=3; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
-        }
-    }
-
-    updateFragments();
-    updateStats();
-    requestAnimationFrame(loop);
-}
-
-// ===== 蓝图（复盘系统）=====
-function saveBlueprint() {
-    state.blueprint = {
-        nodes: state.nodes.map(n=>({x:n.x,y:n.y,pinned:n.pinned,matIdx:n.matIdx,id:n.id})),
-        sticks: state.sticks.map(s=>({n1:s.n1.id,n2:s.n2.id,matIdx:s.matIdx,id:s.id}))
-    };
-}
-
-function restoreBlueprint() {
-    if (!state.blueprint) return;
-    fragments = [];
-    state.nodes = state.blueprint.nodes.map(d=>{
-        let n=new Node(d.x,d.y,d.pinned,d.matIdx); n.id=d.id; return n;
-    });
-    state.sticks = state.blueprint.sticks.map(d=>{
-        let n1=state.nodes.find(n=>n.id===d.n1);
-        let n2=state.nodes.find(n=>n.id===d.n2);
-        if (!n1||!n2) return null;
-        let s=new Stick(n1,n2,d.matIdx); s.id=d.id; return s;
-    }).filter(Boolean);
-    // 把 breakLog 应用回来，用于复盘高亮
-    state.breakLog.forEach(log => {
-        if (log.type==='stick') {
-            let s=state.sticks.find(s=>s.id===log.id);
-            if (s) { s.wasBroken=true; s.breakOrder=log.order; }
-        } else {
-            let n=state.nodes.find(n=>n.id===log.id);
-            if (n) { n.wasBroken=true; n.breakOrder=log.order; }
-        }
-    });
-    state.bends = [];
-}
-
-// ===== 历史记录 =====
-function saveHistory() {
-    if (state.history.length>=20) state.history.shift();
-    state.history.push({
-        nodes: state.nodes.map(n=>({x:n.x,y:n.y,pinned:n.pinned,matIdx:n.matIdx,id:n.id})),
-        sticks: state.sticks.map(s=>({n1:s.n1.id,n2:s.n2.id,matIdx:s.matIdx}))
-    });
-}
-
-window.undo = () => {
-    if (state.simulating) return toast("测试中不能撤销");
-    if (state.history.length<=1) return toast("没有更多步骤");
-    state.history.pop();
-    let prev=state.history[state.history.length-1];
-    state.nodes = prev.nodes.map(d=>{let n=new Node(d.x,d.y,d.pinned,d.matIdx);n.id=d.id;return n;});
-    state.sticks = prev.sticks.map(d=>{
-        let n1=state.nodes.find(n=>n.id===d.n1), n2=state.nodes.find(n=>n.id===d.n2);
-        if(n1&&n2) return new Stick(n1,n2,d.matIdx);
-    }).filter(Boolean);
-    state.bends=[];
-    // 恢复后清理孤立节点（快照间中间状态可能产生孤儿）
-    state.nodes = state.nodes.filter(n => n.pinned || state.sticks.some(s => s.n1===n || s.n2===n));
-    toast("撤销成功");
-};
-
-// ===== 模拟开关 =====
-window.toggleSim = () => {
-    let btn=document.getElementById('btn-mode');
-    let ranges=document.querySelectorAll('input[type=range]');
-    let banner=document.getElementById('replay-banner');
-
-    if (!state.simulating) {
-        // 开始
-        state.statsLocked = true;
-        saveBlueprint();
-        state.breakLog=[]; state.nextBreakOrder=1; fragments=[];
-        state.nodes.forEach(n=>{n.broken=false;n.wasBroken=false;n.breakOrder=0;});
-        state.sticks.forEach(s=>{s.broken=false;s.wasBroken=false;s.breakOrder=0;});
-        // 清零速度
-        state.nodes.forEach(n=>{n.oldX=n.x;n.oldY=n.y;n.forceX=0;n.forceY=0;});
-        buildBends();
-        state.warmupFrames=0;
-        state.simulating=true;
-        btn.textContent='⏹️ 停止测试'; btn.className='mode-btn running';
-        ranges.forEach(r=>r.disabled=false);
-        banner.style.display='none';
-        toast("测试开始");
-    } else {
-        // 停止 → 复盘
-        state.statsLocked=false;
-        state.simulating=false;
-        ranges.forEach(r=>{r.value=0;r.disabled=true;});
-        state.env={wind:0,quake:0,load:0};
-        ['wind','quake','load'].forEach(k=>{
-            document.getElementById('disp-'+k).innerText='0'+(k==='load'?'kg':'级');
-        });
-        restoreBlueprint();
-        btn.textContent='▶️ 开始测试'; btn.className='mode-btn';
-        if (state.breakLog.length>0) {
-            banner.style.display='block';
-            toast("复盘模式：红色标记为最先断裂处");
-        }
-    }
-};
-
-// ===== 其他工具 =====
-window.setMat = (idx) => {
-    state.matIdx=idx;
-    document.querySelectorAll('.mat-card').forEach((el,i)=>
-        el.className=i===idx?'mat-card active':'mat-card');
-};
-
-window.setEnv = (key, val) => {
-    state.env[key]=parseInt(val);
-    let suffix = key==='load'?'kg':'级';
-    document.getElementById('disp-'+key).innerText=val+suffix;
-};
-
-window.toggleDel = () => {
-    state.deleting=!state.deleting;
-    let btn=document.getElementById('btn-del');
-    btn.textContent=state.deleting?'✂️ 删除模式：开启':'✂️ 删除模式：关闭';
-    btn.className=state.deleting?'active':'';
-};
+window.setMat = idx => { state.matIdx = idx; document.querySelectorAll('.mat-card').forEach((el, i) => el.className = i === idx ? 'mat-card active' : 'mat-card'); };
+window.setEnv = (key, value) => { state.env[key] = Number(value); document.getElementById(`disp-${key}`).innerText = `${value}${key === 'load' ? 'kg' : '级'}`; };
+window.toggleDel = () => { state.deleting = !state.deleting; const btn = document.getElementById('btn-del'); btn.className = state.deleting ? 'active' : ''; btn.textContent = `✂️ 删除模式：${state.deleting ? '开启' : '关闭'}`; };
 
 window.clearAll = () => {
-    if (state.simulating) return;
-    if (!confirm('确定清空所有设计？')) return;
-    state.nodes=[]; state.sticks=[]; fragments=[]; state.breakLog=[];
-    document.getElementById('replay-banner').style.display='none';
-    init();
-    toast("已清空");
+  if (state.simulating) return;
+  if (!confirm('确定清空所有设计？')) return;
+  initScene();
+  document.getElementById('replay-banner').style.display = 'none';
+  toast('已清空');
 };
 
-// ===== 自动连接交叉点（完整算法）=====
-window.autoConnect = () => {
-    if (state.simulating) return toast("测试中不能使用");
-    if (state.sticks.length<2) return toast("至少需要两根杆件");
-    saveHistory();
-    const EPS=1e-4, EP_GUARD=0.02, MERGE_TOL=Math.max(2,PHYSICS.snap*0.25);
-    const clusters=[], splitMap=new Map();
+function makeFragments(x, y, color) { for (let i = 0; i < 10; i++) state.fragments.push({ x, y, vx: (Math.random() - 0.5) * 4, vy: Math.random() * -3, life: 1, color }); }
+function drawFragments() { state.fragments.forEach(f => { f.x += f.vx; f.y += f.vy; f.vy += 0.18; f.life -= 0.02; ctx.globalAlpha = Math.max(0, f.life); ctx.fillStyle = f.color; ctx.fillRect(f.x, f.y, 3, 3); }); ctx.globalAlpha = 1; state.fragments = state.fragments.filter(f => f.life > 0); }
 
-    function ptLineDist(px,py,ax,ay,bx,by) {
-        let vx=bx-ax,vy=by-ay,l2=vx*vx+vy*vy;
-        if(l2<EPS) return Math.hypot(px-ax,py-ay);
-        let t=Math.max(0,Math.min(1,((px-ax)*vx+(py-ay)*vy)/l2));
-        return Math.hypot(px-(ax+t*vx),py-(ay+t*vy));
-    }
-    function findNearNode(ix,iy,s1,s2) {
-        let best=null,bd=PHYSICS.snap;
-        for(let p of state.nodes) {
-            let d=Math.hypot(p.x-ix,p.y-iy); if(d>=bd) continue;
-            if(ptLineDist(p.x,p.y,s1.n1.x,s1.n1.y,s1.n2.x,s1.n2.y)>MERGE_TOL) continue;
-            if(ptLineDist(p.x,p.y,s2.n1.x,s2.n1.y,s2.n2.x,s2.n2.y)>MERGE_TOL) continue;
-            best=p;bd=d;
-        }
-        return best;
-    }
-    function findOrMakeCluster(x,y,existing) {
-        for(let c of clusters) {
-            if(Math.hypot(c.x-x,c.y-y)<=MERGE_TOL) {
-                if(!c.existing&&existing) c.existing=existing;
-                if(c.existing){c.x=c.existing.x;c.y=c.existing.y;}
-                return c;
-            }
-        }
-        let c={x:existing?existing.x:x,y:existing?existing.y:y,existing,node:null};
-        clusters.push(c); return c;
-    }
-    function regSplit(s,t,c) {
-        if(t<=EP_GUARD||t>=1-EP_GUARD) return;
-        if(!splitMap.has(s)) splitMap.set(s,[]);
-        splitMap.get(s).push({t,c});
-    }
+function evaluateStructure() {
+  state.nodes.forEach(n => { n.fx = 0; n.fy = 0; n.mass = 6; });
+  const activeMembers = state.members.filter(m => !m.broken && !m.a.broken && !m.b.broken);
 
-    for(let i=0;i<state.sticks.length;i++) for(let j=i+1;j<state.sticks.length;j++) {
-        let s1=state.sticks[i],s2=state.sticks[j];
-        if(s1.n1===s2.n1||s1.n1===s2.n2||s1.n2===s2.n1||s1.n2===s2.n2) continue;
-        let denom=(s2.n2.y-s2.n1.y)*(s1.n2.x-s1.n1.x)-(s2.n2.x-s2.n1.x)*(s1.n2.y-s1.n1.y);
-        if(Math.abs(denom)<EPS) continue;
-        let ua=((s2.n2.x-s2.n1.x)*(s1.n1.y-s2.n1.y)-(s2.n2.y-s2.n1.y)*(s1.n1.x-s2.n1.x))/denom;
-        let ub=((s1.n2.x-s1.n1.x)*(s1.n1.y-s2.n1.y)-(s1.n2.y-s1.n1.y)*(s1.n1.x-s2.n1.x))/denom;
-        if(ua<=EP_GUARD||ua>=1-EP_GUARD||ub<=EP_GUARD||ub>=1-EP_GUARD) continue;
-        let ix=s1.n1.x+ua*(s1.n2.x-s1.n1.x), iy=s1.n1.y+ua*(s1.n2.y-s1.n1.y);
-        let near=findNearNode(ix,iy,s1,s2);
-        let cl=findOrMakeCluster(ix,iy,near);
-        regSplit(s1,ua,cl); regSplit(s2,ub,cl);
-    }
+  for (const m of activeMembers) {
+    const L = Math.max(0.1, m.lengthM());
+    const mass = m.mat.density * m.mat.area * L;
+    m.a.mass += mass * 0.5;
+    m.b.mass += mass * 0.5;
+  }
 
-    let newNodes=0,procSticks=0;
-    clusters.forEach(c=>{
-        c.node=c.existing||addNode(c.x,c.y,false,state.matIdx);
-        if(!c.existing) newNodes++;
+  const liveNodes = state.nodes.filter(n => !n.pinned && !n.broken);
+  liveNodes.forEach(n => n.fy += n.mass * PHYSICS.gravity);
+
+  if (state.env.load > 0 && liveNodes.length) {
+    const topY = Math.min(...liveNodes.map(n => n.y));
+    const topNodes = liveNodes.filter(n => n.y <= topY + 20);
+    const F = (state.env.load * PHYSICS.gravity) / Math.max(1, topNodes.length);
+    topNodes.forEach(n => n.fy += F);
+  }
+
+  if (state.env.wind > 0 && liveNodes.length) {
+    const topY = Math.min(...liveNodes.map(n => n.y));
+    const Hm = Math.max(1, (canvas.height - 60 - topY) / PHYSICS.pxPerMeter);
+    const q = 0.613 * Math.pow((state.env.wind / 100) * PHYSICS.windRef, 2);
+    const sway = Math.sin(performance.now() / 700);
+    const sumWeight = liveNodes.reduce((acc, n) => acc + Math.max(1, (canvas.height - 60 - n.y)), 0);
+    liveNodes.forEach(n => {
+      const share = Math.max(1, (canvas.height - 60 - n.y)) / sumWeight;
+      n.fx += sway * q * Hm * 0.3 * share;
     });
-    for(let [stick,splits] of splitMap.entries()) {
-        if(!splits.length) continue;
-        splits.sort((a,b)=>a.t-b.t);
-        let deduped=[]; for(let s of splits){
-            let last=deduped[deduped.length-1];
-            if(last&&Math.abs(last.t-s.t)<EP_GUARD) continue; deduped.push(s);
-        }
-        if(!deduped.length) continue;
-        let idx=state.sticks.indexOf(stick); if(idx===-1) continue;
-        state.sticks.splice(idx,1);
-        let chain=[stick.n1,...deduped.map(s=>s.c.node),stick.n2];
-        for(let i=0;i<chain.length-1;i++) {
-            let a=chain[i],b=chain[i+1];
-            if(a===b||Math.hypot(a.x-b.x,a.y-b.y)<0.5) continue;
-            state.sticks.push(new Stick(a,b,stick.matIdx));
-        }
-        procSticks++;
-    }
-    if(newNodes>0||procSticks>0) toast(`连接完成：${procSticks}根杆，${newNodes}个节点`);
-    else toast("未发现交叉点");
-    saveHistory();
-};
+  }
 
-// ===== 统计更新 =====
-function updateStats() {
-    let maxH=0;
-    state.nodes.forEach(n=>{ if(!n.broken) maxH=Math.max(maxH,PHYSICS.groundY-n.y); });
-    document.getElementById('height-indicator').textContent=`🏔️ 最高点：${Math.round(maxH/PHYSICS.scale*10)} cm`;
-
-    if (state.statsLocked) {
-        // 模拟中只更新应力
-        let maxS=0;
-        state.sticks.forEach(s=>{ if(!s.broken) maxS=Math.max(maxS,Math.abs(s.stress)); });
-        document.getElementById('max-stress').textContent=(maxS*100).toFixed(1)+'%';
-        return;
-    }
-
-    document.getElementById('count-node').textContent=state.nodes.length;
-    let lW=0,lS=0,lC=0;
-    state.sticks.forEach(s=>{
-        let l=s.len/PHYSICS.scale;
-        if(s.matIdx===0) lW+=l;
-        else if(s.matIdx===1) lS+=l;
-        else lC+=l;
+  if (state.env.quake > 0) {
+    const ag = (state.env.quake / 100) * 0.8 * PHYSICS.gravity;
+    const ax = Math.sin(performance.now() / 160) * ag;
+    liveNodes.forEach(n => n.fx += n.mass * ax);
+    state.nodes.filter(n => n.pinned).forEach(n => {
+      n.x = n.baseX + Math.sin(performance.now() / 160) * (state.env.quake / 100) * 6;
     });
-    document.getElementById('stat-len-wood').textContent=Math.round(lW)+' cm';
-    document.getElementById('stat-len-steel').textContent=Math.round(lS)+' cm';
-    document.getElementById('stat-len-carbon').textContent=Math.round(lC)+' cm';
-    document.getElementById('stat-total-len').textContent=Math.round(lW+lS+lC)+' cm';
-    let cost=state.nodes.length*50+lW*2+lS*8+lC*20;
-    document.getElementById('cost-total').textContent=Math.round(cost);
+  } else {
+    state.nodes.filter(n => n.pinned).forEach(n => n.x = n.baseX);
+  }
 
-    let maxS=0;
-    state.sticks.forEach(s=>{ if(!s.broken) maxS=Math.max(maxS,Math.abs(s.stress)); });
-    document.getElementById('max-stress').textContent=(maxS*100).toFixed(1)+'%';
+  // 核心折中：保留工程化计算，同时增加数值限幅与延迟破坏，增强抗脆弱性
+  const dt = PHYSICS.dt / PHYSICS.solverSubSteps;
+  for (let k = 0; k < PHYSICS.solverSubSteps; k++) {
+    for (const m of activeMembers) {
+      const dx = m.b.x - m.a.x;
+      const dy = m.b.y - m.a.y;
+      const Lpx = Math.hypot(dx, dy) || 1;
+      const Lm = Lpx / PHYSICS.pxPerMeter;
+      const ux = dx / Lpx;
+      const uy = dy / Lpx;
+      const strain = (Lpx - m.l0) / Math.max(1, m.l0);
+      const kAxial = (m.mat.E * m.mat.area) / Math.max(0.08, Lm);
+
+      // 限幅避免“科学参数 + 大步长”造成瞬态爆炸
+      const materialLimit = m.mat.tensile * m.mat.area;
+      const forceCap = materialLimit * PHYSICS.forceCapFactor;
+      const force = Math.max(-forceCap, Math.min(forceCap, kAxial * strain));
+
+      m.forceN = force;
+      const compLimit = bucklingLimit(m, Lm) * m.mat.area;
+      m.ratio = force >= 0 ? force / materialLimit : Math.abs(force) / Math.max(1, compLimit);
+      m.a.fx += force * ux;
+      m.a.fy += force * uy;
+      m.b.fx -= force * ux;
+      m.b.fy -= force * uy;
+    }
+
+    for (const n of liveNodes) {
+      const ax = n.fx / n.mass;
+      const ay = n.fy / n.mass;
+      n.vx = (n.vx + ax * dt) * PHYSICS.damping;
+      n.vy = (n.vy + ay * dt) * PHYSICS.damping;
+
+      // 节点速度限幅，避免个别杆件断裂触发连锁数值飞散
+      const v = Math.hypot(n.vx, n.vy);
+      if (v > PHYSICS.maxNodeSpeed) {
+        const scale = PHYSICS.maxNodeSpeed / v;
+        n.vx *= scale;
+        n.vy *= scale;
+      }
+
+      n.x += n.vx * PHYSICS.pxPerMeter * dt;
+      n.y += n.vy * PHYSICS.pxPerMeter * dt;
+      n.y = Math.min(n.y, canvas.height - 60);
+      n.fx = 0;
+      n.fy = n.mass * PHYSICS.gravity;
+    }
+  }
+
+  for (const m of activeMembers) {
+    if (m.ratio > 1) m.overloadCount += 1;
+    else m.overloadCount = Math.max(0, m.overloadCount - 1);
+
+    if (m.overloadCount >= PHYSICS.overloadFramesToFail) {
+      m.broken = true;
+      m.overloadCount = 0;
+      if (!state.breakLog.some(i => i.id === m.id && i.type === 'member')) {
+        state.breakLog.push({ type: 'member', id: m.id, order: state.nextBreakOrder++ });
+        makeFragments((m.a.x + m.b.x) * 0.5, (m.a.y + m.b.y) * 0.5, m.mat.color);
+      }
+    }
+  }
 }
 
-// ===== 网格 =====
+function bucklingLimit(m, L) {
+  const I = (Math.PI * Math.pow(m.mat.radius, 4)) / 4;
+  const euler = (Math.PI * Math.PI * m.mat.E * I) / Math.max(0.08 * 0.08, L * L);
+  return Math.min(m.mat.compressive, euler / m.mat.area);
+}
+
 function drawGrid() {
-    ctx.strokeStyle='rgba(0,0,0,0.05)'; ctx.lineWidth=1;
-    for(let x=0;x<canvas.width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
-    for(let y=canvas.height;y>0;y-=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
+  for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+  for (let y = canvas.height; y > 0; y -= 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
 }
 
-// ===== 工具函数 =====
-function getProjectedPoint(p,v,w) {
-    let l2=(v.x-w.x)**2+(v.y-w.y)**2;
-    if(l2===0) return {x:v.x,y:v.y};
-    let t=Math.max(0,Math.min(1,((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2));
-    return{x:v.x+t*(w.x-v.x),y:v.y+t*(w.y-v.y)};
-}
-function ptSegDist(p,a,b) {
-    let proj=getProjectedPoint(p,a,b);
-    return Math.hypot(p.x-proj.x,p.y-proj.y);
-}
-function getHoverNode(x,y) {
-    let best=null,bd=PHYSICS.snap;
-    for(let n of state.nodes){let d=Math.hypot(n.x-x,n.y-y);if(d<bd){bd=d;best=n;}}
-    return best;
-}
-function getNearestStick(p) {
-    let best=null,bd=12;
-    for(let s of state.sticks){let d=ptSegDist(p,s.n1,s.n2);if(d<bd){bd=d;best=s;}}
-    return best;
+function drawLoadVisual() {
+  if (!state.simulating || state.env.load <= 0) return;
+  const alive = state.nodes.filter(n => !n.broken && !n.pinned);
+  if (!alive.length) return;
+  const topY = Math.min(...alive.map(n => n.y));
+  const topNodes = alive.filter(n => n.y <= topY + 20);
+  const cx = topNodes.reduce((s, n) => s + n.x, 0) / topNodes.length;
+  const w = 100 + state.env.load * 1.2; const h = 14;
+  ctx.fillStyle = 'rgba(127,140,141,.95)'; ctx.fillRect(cx - w * 0.5, topY - 24, w, h);
+  ctx.fillStyle = '#34495e'; ctx.fillRect(cx - 40, topY - 80, 80, 46);
+  ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText(`${state.env.load}kg`, cx, topY - 50);
 }
 
-function toast(msg) {
-    let t=document.getElementById('toast');
-    t.textContent=msg; t.style.opacity=1;
-    setTimeout(()=>t.style.opacity=0,2000);
-}
+function drawScene() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#95a5a6'; ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+  drawGrid();
 
-// ===== 鼠标事件 =====
-canvas.addEventListener('mousemove', e => {
-    let r=canvas.getBoundingClientRect();
-    state.mouse={x:e.clientX-r.left,y:e.clientY-r.top};
-    state.hoverNode=getHoverNode(state.mouse.x,state.mouse.y);
-    state.hoverStick=!state.hoverNode?getNearestStick(state.mouse):null;
-    if (state.deleting) canvas.style.cursor='cell';
-    else if (state.hoverNode||state.hoverStick) canvas.style.cursor='pointer';
-    else if (state.mouse.y>=PHYSICS.groundY-15) canvas.style.cursor='cell';
-    else canvas.style.cursor='crosshair';
-});
-
-canvas.addEventListener('mousedown', e => {
-    if (e.button===2) {
-        // 右键删除
-        if (state.simulating) return;
-        if (state.hoverNode) {
-            let pinnedCount = state.nodes.filter(n=>n.pinned).length;
-            if (state.hoverNode.pinned && pinnedCount <= 2) return toast("至少保留2个地基节点");
-            saveHistory();
-            state.sticks=state.sticks.filter(s=>s.n1!==state.hoverNode&&s.n2!==state.hoverNode);
-            state.nodes=state.nodes.filter(n=>n!==state.hoverNode);
-            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
-            toast("删除节点");
-        }
-        return;
+  for (const m of state.members) {
+    if (m.broken) continue;
+    if (!state.simulating && m.wasBroken && m.breakOrder <= 3) {
+      ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(m.a.x, m.a.y); ctx.lineTo(m.b.x, m.b.y); ctx.stroke();
     }
-    if (state.simulating) return toast("测试中无法修改");
-    if (state.deleting) {
-        if (state.hoverNode) {
-            let pinnedCount = state.nodes.filter(n=>n.pinned).length;
-            if (state.hoverNode.pinned && pinnedCount <= 2) return toast("至少保留2个地基节点");
-            saveHistory();
-            state.sticks=state.sticks.filter(s=>s.n1!==state.hoverNode&&s.n2!==state.hoverNode);
-            state.nodes=state.nodes.filter(n=>n!==state.hoverNode);
-            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
-            toast("删除节点");
-        } else if (state.hoverStick) {
-            saveHistory();
-            state.sticks=state.sticks.filter(s=>s!==state.hoverStick);
-            // 清理因删杆而产生的孤立节点
-            state.nodes=state.nodes.filter(n=>n.pinned||state.sticks.some(s=>s.n1===n||s.n2===n));
-            toast("删除杆件");
-        }
-        return;
+    ctx.strokeStyle = m.mat.color; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(m.a.x, m.a.y); ctx.lineTo(m.b.x, m.b.y); ctx.stroke();
+    if (state.simulating) {
+      const alpha = Math.min(0.9, Math.abs(m.ratio));
+      if (alpha > 0.02) {
+        const c = m.forceN >= 0 ? `rgba(220,50,50,${alpha})` : `rgba(60,100,220,${alpha})`;
+        ctx.strokeStyle = c; ctx.lineWidth = 1.7; ctx.beginPath();
+        const dx = m.b.x - m.a.x, dy = m.b.y - m.a.y, L = Math.hypot(dx, dy) || 1;
+        const nx = -(dy / L) * 4, ny = (dx / L) * 4;
+        ctx.moveTo(m.a.x + nx, m.a.y + ny); ctx.lineTo(m.b.x + nx, m.b.y + ny); ctx.stroke();
+      }
+    }
+  }
+
+  if (!state.simulating && !state.deleting && state.hoverMember && !state.hoverNode) {
+    ctx.globalAlpha = 0.4; ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(state.hoverMember.a.x, state.hoverMember.a.y); ctx.lineTo(state.hoverMember.b.x, state.hoverMember.b.y); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  for (const n of state.nodes) {
+    if (n.broken) continue;
+    if (!state.simulating && n.wasBroken && n.breakOrder <= 3) { ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(n.x, n.y, 12, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.pinned ? 8 : 5, 0, Math.PI * 2); ctx.fillStyle = n.pinned ? '#34495e' : MATERIALS[n.matIdx].color; ctx.fill();
+  }
+
+  if (state.dragging && state.dragStart) {
+    const target = state.hoverNode || state.mouse;
+    ctx.setLineDash([6, 6]); ctx.strokeStyle = MATERIALS[state.matIdx].color; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(state.dragStart.x, state.dragStart.y); ctx.lineTo(target.x, target.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  if (state.deleting && !state.simulating) {
+    if (state.hoverMember) {
+      ctx.setLineDash([6, 4]); ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(state.hoverMember.a.x, state.hoverMember.a.y); ctx.lineTo(state.hoverMember.b.x, state.hoverMember.b.y); ctx.stroke(); ctx.setLineDash([]);
     }
     if (state.hoverNode) {
-        state.dragging=true; state.dragStart=state.hoverNode;
-    } else if (state.hoverStick) {
-        saveHistory();
-        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
-        let newN=addNode(proj.x,proj.y,false);
-        let old=state.hoverStick;
-        state.sticks=state.sticks.filter(s=>s!==old);
-        state.sticks.push(new Stick(old.n1,newN,old.matIdx));
-        state.sticks.push(new Stick(newN,old.n2,old.matIdx));
-        state.dragging=true; state.dragStart=newN;
-    } else if (state.mouse.y>PHYSICS.groundY-20) {
-        let n=addNode(state.mouse.x,PHYSICS.groundY,true);
-        state.dragging=true; state.dragStart=n;
+      ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(state.hoverNode.x, state.hoverNode.y, 13, 0, Math.PI * 2); ctx.stroke();
     }
+  }
+
+  drawLoadVisual();
+  drawFragments();
+}
+
+function cleanupIsolatedNodes() {
+  state.nodes = state.nodes.filter(n => n.pinned || state.members.some(m => !m.broken && (m.a === n || m.b === n)));
+}
+
+function updateStats() {
+  const aliveNodes = state.nodes.filter(n => !n.broken);
+  const aliveMembers = state.members.filter(m => !m.broken);
+  const maxHeightM = aliveNodes.length ? Math.max(...aliveNodes.map(n => (canvas.height - 60 - n.y) / PHYSICS.pxPerMeter)) : 0;
+  document.getElementById('height-indicator').textContent = `🏔️ 最高点：${(maxHeightM * 100).toFixed(0)} cm`;
+
+  document.getElementById('count-node').textContent = state.nodes.length;
+  let lengths = [0, 0, 0], maxRatio = 0;
+  for (const m of state.members) {
+    const lcm = m.l0 * 100 / PHYSICS.pxPerMeter;
+    lengths[m.matIdx] += lcm;
+    if (!m.broken) maxRatio = Math.max(maxRatio, Math.abs(m.ratio));
+  }
+  document.getElementById('stat-len-wood').textContent = `${lengths[0].toFixed(0)} cm`;
+  document.getElementById('stat-len-steel').textContent = `${lengths[1].toFixed(0)} cm`;
+  document.getElementById('stat-len-carbon').textContent = `${lengths[2].toFixed(0)} cm`;
+  document.getElementById('stat-total-len').textContent = `${(lengths[0] + lengths[1] + lengths[2]).toFixed(0)} cm`;
+  const cost = state.nodes.length * 50 + lengths[0] * 2 + lengths[1] * 8 + lengths[2] * 20;
+  document.getElementById('cost-total').textContent = Math.round(cost);
+  document.getElementById('max-stress').textContent = `${(maxRatio * 100).toFixed(1)}%`;
+
+  if (state.simulating) {
+    cleanupIsolatedNodes();
+  }
+}
+
+function getHoverNode(x, y) {
+  let best = null, dBest = 12;
+  for (const n of state.nodes) { const d = Math.hypot(n.x - x, n.y - y); if (d < dBest) { dBest = d; best = n; } }
+  return best;
+}
+function projectPoint(p, a, b) { const l2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2; if (!l2) return { x: a.x, y: a.y }; const t = Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2)); return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+function getHoverMember(p) {
+  let best = null, dBest = 11;
+  for (const m of state.members) {
+    const pr = projectPoint(p, m.a, m.b);
+    const d = Math.hypot(pr.x - p.x, pr.y - p.y);
+    if (d < dBest) { dBest = d; best = m; }
+  }
+  return best;
+}
+
+function splitMemberAt(member, x, y) {
+  const n = addNode(x, y, false, state.matIdx);
+  state.members = state.members.filter(m => m !== member);
+  addMember(member.a, n, member.matIdx);
+  addMember(n, member.b, member.matIdx);
+  return n;
+}
+
+window.autoConnect = () => {
+  if (state.simulating) return toast('测试中不可自动连接');
+  saveHistory();
+  const threshold = 130;
+  for (let i = 0; i < state.nodes.length; i++) {
+    for (let j = i + 1; j < state.nodes.length; j++) {
+      const a = state.nodes[i], b = state.nodes[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < threshold) addMember(a, b, state.matIdx);
+    }
+  }
+  toast('自动连接完成');
+};
+
+function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 1600); }
+
+function beginSimulation() {
+  if (!state.members.length) return toast('请先搭建至少一根杆件');
+  state.blueprint = serialize();
+  state.breakLog = []; state.nextBreakOrder = 1; state.fragments = [];
+  state.nodes.forEach(n => { n.vx = 0; n.vy = 0; n.broken = false; n.wasBroken = false; n.breakOrder = 0; n.baseX = n.x; });
+  state.members.forEach(m => { m.broken = false; m.wasBroken = false; m.breakOrder = 0; m.forceN = 0; m.ratio = 0; m.overloadCount = 0; });
+  state.simulating = true;
+  document.getElementById('btn-mode').textContent = '⏹️ 停止测试';
+  document.getElementById('btn-mode').className = 'mode-btn running';
+  document.querySelectorAll('input[type=range]').forEach(r => r.disabled = false);
+  document.getElementById('replay-banner').style.display = 'none';
+}
+function endSimulation() {
+  state.simulating = false;
+  document.getElementById('btn-mode').textContent = '▶️ 开始测试';
+  document.getElementById('btn-mode').className = 'mode-btn';
+  document.querySelectorAll('input[type=range]').forEach(r => { r.disabled = true; r.value = 0; });
+  state.env = { wind: 0, quake: 0, load: 0 };
+  ['wind', 'quake', 'load'].forEach(k => document.getElementById(`disp-${k}`).textContent = `0${k === 'load' ? 'kg' : '级'}`);
+  if (state.blueprint) restore(state.blueprint);
+
+  for (const event of state.breakLog) {
+    if (event.type === 'member') {
+      const m = state.members.find(mm => mm.id === event.id);
+      if (m) { m.wasBroken = true; m.breakOrder = event.order; }
+    }
+  }
+  if (state.breakLog.length) {
+    document.getElementById('replay-banner').style.display = 'block';
+    toast('复盘模式：红色标记为最先断裂处');
+  }
+}
+window.toggleSim = () => state.simulating ? endSimulation() : beginSimulation();
+
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  state.mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
+  state.hoverNode = getHoverNode(state.mouse.x, state.mouse.y);
+  state.hoverMember = state.hoverNode ? null : getHoverMember(state.mouse);
+  if (state.deleting) canvas.style.cursor = 'cell';
+  else if (state.hoverNode || state.hoverMember) canvas.style.cursor = 'pointer';
+  else canvas.style.cursor = 'crosshair';
 });
 
-canvas.addEventListener('mouseup', e => {
-    if (!state.dragging) return;
-    let endNode=state.hoverNode;
-    if (!endNode&&state.hoverStick) {
-        let proj=getProjectedPoint(state.mouse,state.hoverStick.n1,state.hoverStick.n2);
-        endNode=addNode(proj.x,proj.y,false);
-        let old=state.hoverStick;
-        state.sticks=state.sticks.filter(s=>s!==old);
-        state.sticks.push(new Stick(old.n1,endNode,old.matIdx));
-        state.sticks.push(new Stick(endNode,old.n2,old.matIdx));
+canvas.addEventListener('mousedown', (e) => {
+  if (state.simulating) return toast('测试中无法编辑');
+  if (e.button === 2 || state.deleting) {
+    if (state.hoverNode) {
+      const pinnedCount = state.nodes.filter(n => n.pinned).length;
+      if (state.hoverNode.pinned && pinnedCount <= 2) return toast('至少保留2个地基节点');
+      saveHistory();
+      state.members = state.members.filter(m => m.a !== state.hoverNode && m.b !== state.hoverNode);
+      state.nodes = state.nodes.filter(n => n !== state.hoverNode);
+      cleanupIsolatedNodes();
+      return;
     }
-    if (!endNode) {
-        let mx=state.mouse.x, my=state.mouse.y;
-        if (my>PHYSICS.groundY-5) my=PHYSICS.groundY;
-        endNode=addNode(mx,my,my>=PHYSICS.groundY);
+    if (state.hoverMember) {
+      saveHistory();
+      state.members = state.members.filter(m => m !== state.hoverMember);
+      cleanupIsolatedNodes();
     }
-    if (state.dragStart!==endNode) {
-        let exists=state.sticks.some(s=>(s.n1===state.dragStart&&s.n2===endNode)||(s.n1===endNode&&s.n2===state.dragStart));
-        if (!exists) {
-            saveHistory();
-            state.sticks.push(new Stick(state.dragStart, endNode, state.matIdx));
-        }
-    }
-    state.dragging=false; state.dragStart=null;
+    return;
+  }
+
+  if (state.hoverNode) {
+    state.dragging = true;
+    state.dragStart = state.hoverNode;
+    return;
+  }
+
+  if (state.hoverMember) {
+    saveHistory();
+    const p = projectPoint(state.mouse, state.hoverMember.a, state.hoverMember.b);
+    state.dragStart = splitMemberAt(state.hoverMember, p.x, p.y);
+    state.dragging = true;
+    return;
+  }
+
+  const ground = canvas.height - 60;
+  const pinned = state.mouse.y >= ground - 15;
+  const n = addNode(state.mouse.x, pinned ? ground : state.mouse.y, pinned, state.matIdx);
+  if (pinned) n.baseX = n.x;
+  state.dragStart = n;
+  state.dragging = true;
 });
 
-canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('mouseup', () => {
+  if (!state.dragging) return;
+  let target = state.hoverNode;
+  if (!target && state.hoverMember) {
+    saveHistory();
+    const p = projectPoint(state.mouse, state.hoverMember.a, state.hoverMember.b);
+    target = splitMemberAt(state.hoverMember, p.x, p.y);
+  }
+  if (!target) {
+    const ground = canvas.height - 60;
+    const pinned = state.mouse.y >= ground - 5;
+    target = addNode(state.mouse.x, pinned ? ground : state.mouse.y, pinned, state.matIdx);
+    if (pinned) target.baseX = target.x;
+  }
+  if (state.dragStart && target && state.dragStart !== target) {
+    saveHistory();
+    addMember(state.dragStart, target, state.matIdx);
+  }
+  state.dragging = false;
+  state.dragStart = null;
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-init();
+function frame() {
+  if (state.simulating) evaluateStructure();
+  drawScene();
+  updateStats();
+  requestAnimationFrame(frame);
+}
+
+resize();
+window.addEventListener('resize', () => { resize(); if (!state.simulating && !state.nodes.length) initScene(); });
+initScene();
+frame();
 </script>
 </body>
 </html>
